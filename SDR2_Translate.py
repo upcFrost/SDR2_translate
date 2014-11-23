@@ -243,8 +243,8 @@ class OpCodeCreator(Toplevel):
             self.Master.Lin.opcode_list.insert(i, self.selected_opcode)
             self.Master.Lin.action_list.insert(i, OP_FUNCTIONS[self.selected_opcode])
             self.Master.Lin.pars_list.insert(i, self.par_list)
-            # Refresh master's listboxes
-            self.Master.populateLinLists()
+            # Add to the master's listbox
+            self.Master._FlowList.insert(i, "%s%s" % (self.Master.Lin.action_list[i], self.Master.Lin.pars_list[i]))
             # Exit
             self.destroy()
         pass
@@ -290,7 +290,8 @@ class OpCodeCreator(Toplevel):
         # Grab the focus
         self.focus_set()
         self.grab_set()
-        self.transient(self.Master)
+        # Some strange shit happend on Windoze with the next line
+        #self.transient(self.Master)
         pass
     #
     #Start of non-Rapyd user code
@@ -335,9 +336,10 @@ class SDR2_Translate(Frame):
         self._EditString1Len = StringVar()
         self._EditString2Len = StringVar()
         self._EditString3Len = StringVar()
+        self._StringIdx = StringVar()
         self._MenuFrame = Frame(self)
         self._MenuFrame.pack(anchor='nw',fill='both',side='top')
-        self._RootMenu = Menu(self._MenuFrame,type='menubar')
+        self._RootMenu = Menu(self._MenuFrame,tearoff=0,type='menubar')
         self._RootMenu.pack(anchor='nw',expand='yes',fill='both',side='left')
         self._RootMenu.bind('<Map>',self._on_RootMenu_Map)
         self._FileNameFrame = Frame(self)
@@ -387,11 +389,6 @@ class SDR2_Translate(Frame):
         self._ParFrame.pack(anchor='nw',expand='yes',fill='both',side='top')
         self._StringFrame = Frame(self._TabHost)
         self._StringFrame.pack(side='left')
-        self._StringListLabel = Label(self._StringFrame,text='String list')
-        self._StringListLabel.pack(anchor='n',fill='x',side='top')
-        self._StringList = Listbox(self._StringFrame)
-        self._StringList.pack(anchor='nw',expand='yes',fill='both',side='top')
-        self._StringList.bind('<<ListboxSelect>>',self._on_StringList_select)
         self._MiscFrame = Frame(self._TabHost)
         self._MiscFrame.pack(side='left')
         self._MiscList = Listbox(self._MiscFrame)
@@ -432,6 +429,23 @@ class SDR2_Translate(Frame):
         self._ParList.pack(expand='yes',fill='both',side='left')
         self._Frame5 = Frame(self._ParFrame)
         self._Frame5.pack(expand='yes',fill='x',side='left')
+        self._Frame6 = Frame(self._StringFrame)
+        self._Frame6.pack(expand='yes',fill='both',side='top')
+        self._StringListLabel = Label(self._Frame6,text='String list')
+        self._StringListLabel.pack(anchor='n',fill='x',side='top')
+        self._StringList = Listbox(self._Frame6)
+        self._StringList.pack(anchor='nw',expand='yes',fill='both',side='top')
+        self._StringList.bind('<<ListboxSelect>>',self._on_StringList_select)
+        self._Frame7 = Frame(self._StringFrame)
+        self._Frame7.pack(fill='both',side='top')
+        self._StringIdxTextLbl = Label(self._Frame7,text='Current string:')
+        self._StringIdxTextLbl.pack(side='left')
+        self._StringIdxLbl = Label(self._Frame7,textvariable=self._StringIdx)
+        self._StringIdxLbl.pack(side='left')
+        self._AddStringBtn = Button(self._Frame7,text='Add string')
+        self._AddStringBtn.pack(anchor='e',side='left')
+        self._AddStringBtn.bind('<ButtonPress-1>' \
+            ,self._on_AddStringBtn_Button_1)
         self._ParListFrame = Frame(self._Frame5)
         self._ParListFrame.pack(expand='yes',fill='x',side='top')
         self._OpCodeLabel = Label(self._ParListFrame,text='Op Code',width='10')
@@ -469,21 +483,21 @@ class SDR2_Translate(Frame):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString1.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString1Len.set('Chars left: %d' % (30 - len(string)))
+        self._EditString1Len.set('Chars left: %d' % (28 - len(string)))
         pass
 
     def _on_EditString2_modified(self,*args):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString2.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString2Len.set('Chars left: %d' % (30 - len(string)))
+        self._EditString2Len.set('Chars left: %d' % (28 - len(string)))
         pass
 
     def _on_EditString3_modified(self,*args):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString3.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString3Len.set('Chars left: %d' % (30 - len(string)))
+        self._EditString3Len.set('Chars left: %d' % (28 - len(string)))
         pass
 
     def _on_AddOpBtn_Button_1(self,Event=None):
@@ -495,6 +509,20 @@ class SDR2_Translate(Frame):
             # Wait for the window to close
             w.wait_window(w)
             pass
+        pass
+
+    def _on_AddStringBtn_Button_1(self,Event=None):
+        # Show warning
+        question = "This action will ADD a string into the script. Continue?"
+        proceed = tkMessageBox.askyesno("WARNING", question)
+        if proceed:
+            s = tkSimpleDialog.askstring("Add string", "")
+            if s:
+                # Append the string into the list and add it to the listbox
+                self.Lin.string_list.append(s.encode('utf16'))
+                self._StringList.insert(END, s)
+                # Show the index of the new string
+                tkMessageBox.showinfo('String added', 'Inserted string index: %s' % str(len(self.Lin.string_list) - 1))
         pass
 
     def _on_DelOpBtn_Button_1(self,Event=None):
@@ -886,6 +914,7 @@ class SDR2_Translate(Frame):
             else:
                 self._CurrentEditString3.set('')
             self.current_str_idx = num
+            self._StringIdx.set(num)
         pass
     #
     #Start of non-Rapyd user code
@@ -896,18 +925,7 @@ def splitkeepsep(s, sep):
     return reduce(lambda acc, elem: acc[:-1] + [acc[-1] + elem] if elem == sep else acc + [elem], re.split("(%s)" % re.escape(sep), s), [])
 
 pass #---end-of-form---
-import ttk, PIL, tkMessageBox
-from gim2png import GimFile, GmoFile
-from pak_extract import PakFile
-from OpCodes import *
-from Common import *
-from Scene import Scene
-from PIL import Image, ImageTk, ImageDraw, ImageFont
-from clt import *
-import re
-from Character import *
-from LinFile import *
-from enum import *
+
 
 try:
     #--------------------------------------------------------------------------#
@@ -921,8 +939,17 @@ try:
     if '.' not in sys.path:
         sys.path.append('.')
     #Put lines to import other modules of this project here
-    import os, re, struct
-    import tkFileDialog
+    import ttk, PIL, tkMessageBox, os, re, struct, tkFileDialog, tkSimpleDialog
+    from PIL import Image, ImageTk, ImageDraw, ImageFont
+    from gim2png import GimFile, GmoFile
+    from pak_extract import PakFile
+    from OpCodes import *
+    from Common import *
+    from Scene import Scene
+    from clt import *
+    from Character import *
+    from LinFile import *
+    from enum import *
     
     # Global options (should migrate those into a file or smth)
     GameDataLoc = './game/'
