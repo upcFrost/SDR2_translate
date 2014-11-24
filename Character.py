@@ -1,5 +1,5 @@
 import os
-from pak_extract import *
+from PakFile import *
 
 def getCharNames(ROOT_DIR):
     # All char names are stored in a single fixed .pak file

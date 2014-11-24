@@ -1,17 +1,17 @@
-ResViewer.py
+Common.py
  -Main- 0 4
- ResViewer 4 74
- -Main- 78 3
+ -Main- 4 17
 SDR2_Translate.py
  -Main- 0 5
  Filter 5 109
  GameData 114 51
- OpCodeCreator 165 136
- SDR2_Translate 301 626
- -Main- 927 47
+ OpCodeCreator 165 143
+ SDR2_Translate 308 652
+ -Main- 960 47
+ResViewer.py
+ -Main- 0 4
+ ResViewer 4 74
+ -Main- 78 3
 Sprite.py
  -Main- 0 24
  -Main- 24 26
-Common.py
- -Main- 0 4
- -Main- 4 17

@@ -243,6 +243,13 @@ class OpCodeCreator(Toplevel):
             self.Master.Lin.opcode_list.insert(i, self.selected_opcode)
             self.Master.Lin.action_list.insert(i, OP_FUNCTIONS[self.selected_opcode])
             self.Master.Lin.pars_list.insert(i, self.par_list)
+            # Fix the string offset, initial value for the 0x70 + opcode
+            add_offset = 0x02
+            for par in OP_PARAMS[self.selected_opcode]:
+                # Add size of each parameter
+                add_offset += struct.calcsize(par[1]) 
+            # Add the new offset to the base offset
+            self.Master.Lin.baseoffset += add_offset
             # Add to the master's listbox
             self.Master._FlowList.insert(i, "%s%s" % (self.Master.Lin.action_list[i], self.Master.Lin.pars_list[i]))
             # Exit
@@ -519,10 +526,20 @@ class SDR2_Translate(Frame):
             s = tkSimpleDialog.askstring("Add string", "")
             if s:
                 # Append the string into the list and add it to the listbox
-                self.Lin.string_list.append(s.encode('utf16'))
-                self._StringList.insert(END, s)
-                # Show the index of the new string
-                tkMessageBox.showinfo('String added', 'Inserted string index: %s' % str(len(self.Lin.string_list) - 1))
+                try:
+                    # Find opcode in which we declare the number of strings
+                    ns_idx = self.Lin.opcode_list.index(0)
+                    # Add one more string
+                    self.Lin.pars_list[ns_idx] = (self.Lin.pars_list[ns_idx][0], self.Lin.pars_list[ns_idx][0][1] + 1)
+                    # Add the string to the string_list 
+                    self.Lin.string_list.append(s.encode('utf16'))
+                    # Add it to the listbox
+                    self._StringList.insert(END, s)
+                    # Show the index of the new string
+                    tkMessageBox.showinfo('String added', 'Inserted string index: %s' % str(len(self.Lin.string_list) - 1))
+                except:
+                    # Something went wrong
+                    tkMessageBox.showerror('Error', 'Error adding string')
         pass
 
     def _on_DelOpBtn_Button_1(self,Event=None):
@@ -780,6 +797,7 @@ class SDR2_Translate(Frame):
         FileMenu = Menu(self._RootMenu, tearoff=0)
         FileMenu.add_command(label="Open", command=self.openFile)
         FileMenu.add_command(label="Save", command=self.saveFile)
+        FileMenu.add_command(label="Extract Pak", command=self.extractPak)
         FileMenu.add_command(label="Exit", command=exit)
         self._RootMenu.add_cascade(label="File", menu=FileMenu)
         # Options menu
@@ -790,6 +808,21 @@ class SDR2_Translate(Frame):
     
     def openGameDataOpts(self):
         gd = GameData()
+        pass
+    
+    def extractPak(self):
+        options = {}
+        options['filetypes'] = [('pak files', ('*.pak','*.p3d'))]
+        fn = tkFileDialog.askopenfilename(**options)
+        ds = tkFileDialog.askdirectory()
+        if fn and ds:
+            pak = PakFile(fn)
+            pak.getFiles()
+            for f in pak.files:
+                fp = open(os.path.join(ds, f[0]), 'wb')
+                fp.write(f[1])
+                fp.close
+        tkMessageBox.showinfo('Complete', 'Pak file %s extracted successfully into %s' % (fn, ds))
         pass
         
     def openFile(self):
@@ -942,7 +975,7 @@ try:
     import ttk, PIL, tkMessageBox, os, re, struct, tkFileDialog, tkSimpleDialog
     from PIL import Image, ImageTk, ImageDraw, ImageFont
     from gim2png import GimFile, GmoFile
-    from pak_extract import PakFile
+    from PakFile import PakFile
     from OpCodes import *
     from Common import *
     from Scene import Scene

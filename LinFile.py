@@ -13,13 +13,17 @@ class LinFile():
                  string_list = [],
                  action_list = [],
                  pars_list = [],
-                 opcode_list = []):
+                 opcode_list = [],
+                 type = -1,
+                 second_int = -1):
         self.baseoffset  = baseoffset
         self.num_strings = num_strings
         self.string_list = string_list
         self.action_list = action_list
         self.pars_list = pars_list
         self.opcode_list = opcode_list
+        self.type = type
+        self.second_int = second_int
         # Can't forget it ;)
         self.strange_byte = -1
         pass
@@ -27,10 +31,12 @@ class LinFile():
     def clear(self):
         self.baseoffset = -1
         self.numstrings = -1
+        self.type = -1
         self.string_list = []
         self.action_list = []
         self.pars_list = []
         self.opcode_list = []
+        self.second_int = -1
         pass
     
     ##########################
@@ -43,9 +49,10 @@ class LinFile():
         fp = open(fn, 'rb')
         # Get type
         fp.seek(0)
-        type = struct.unpack('I',fp.read(4))[0]
+        self.type = struct.unpack('I',fp.read(4))[0]
+        # Get second int
+        self.second_int = struct.unpack('I',fp.read(4))[0]
         # Get offset
-        fp.seek(8)
         self.baseoffset = struct.unpack('I',fp.read(4))[0]
         # Read action list
         self.decodeLinBase(fp)
@@ -56,7 +63,9 @@ class LinFile():
         pass
         
     def decodeLinBase(self, fp):
-        fp.seek(0)
+        # We should skip 3 first integers, because those're file type
+        # some integer (???) and base offset
+        fp.seek(12)
         while fp.tell() < self.baseoffset:
             curByte = fp.read(1)
             # If that's an operation
@@ -108,6 +117,12 @@ class LinFile():
     ##########################
     def encodeLinFile(self, fn):
         fp = open(fn, 'wb')
+        # Put file type
+        fp.write(struct.pack('I',self.type))
+        # Get second int
+        fp.write(struct.pack('I',self.second_int))
+        # Get offset
+        fp.write(struct.pack('I',self.baseoffset))
         # Encode base
         for i in xrange(len(self.action_list)):
             action = self.action_list[i]
