@@ -18,11 +18,14 @@
 ### If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
+import array
+
 DEFAULT_COLOR   = (255, 255, 255)
 DEFAULT_BORDER  = (0, 0, 0)
 
 def get_rgba(color):
-  return (color.red(), color.green(), color.blue(), color.alpha())
+  # Alpha is always 255, at least in this game
+  return (color[0], color[1], color[2], 255)
 
 class CLTStyle:
   def __init__(self, font = 1, scale = 100, x_shift = 0.0, y_shift = 0.0,
@@ -50,8 +53,9 @@ class CLTStyle:
 #           bitstring.pack("uint:8, uint:8, uint:8, uint:8", *top_color) + \
 #           bitstring.pack("uint:8, uint:8, uint:8, uint:8", *bottom_color) + \
 #           bitstring.pack("uint:8, uint:8, uint:8, uint:8", *border_color)
-    # FIXME: stub, i'm too lazy right now
-    data = ''
+
+    data = array.array('B', [font, has_border, show_color, scale] + list(top_color) + list(bottom_color) + list(border_color))
+
     return data
 
 CLT_ORIGINAL = {

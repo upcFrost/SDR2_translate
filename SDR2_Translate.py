@@ -490,21 +490,21 @@ class SDR2_Translate(Frame):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString1.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString1Len.set('Chars left: %d' % (28 - len(string)))
+        self._EditString1Len.set('Chars left: %d' % (96 - len(string)))
         pass
 
     def _on_EditString2_modified(self,*args):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString2.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString2Len.set('Chars left: %d' % (28 - len(string)))
+        self._EditString2Len.set('Chars left: %d' % (96 - len(string)))
         pass
 
     def _on_EditString3_modified(self,*args):
         # We don't need to count the <CLT>s
         string = self._CurrentEditString3.get()
         string = re.sub(r'<CLT.*?>', '', string)
-        self._EditString3Len.set('Chars left: %d' % (28 - len(string)))
+        self._EditString3Len.set('Chars left: %d' % (96 - len(string)))
         pass
 
     def _on_AddOpBtn_Button_1(self,Event=None):

@@ -1,7 +1,7 @@
 #coding=utf8
 
 from Tkinter import *
-import os, struct, math
+import os, struct, math, array
 from PIL import Image
 
 MIG_MAGIC = '\x4D\x49\x47'
@@ -9,7 +9,7 @@ MIG_MAGIC = '\x4D\x49\x47'
 class GmoFile():
     def __init__(self):
         self.fn = ''
-        self.full = ''
+        self.full = array.array('B')
         self.header = ''
         self.data = ''
         self.gim = GimFile()
@@ -22,11 +22,10 @@ class GmoFile():
         # Get filesize
         self.fileSize = os.path.getsize(self.fn)
         # Read full file
-        self.full = self.fp.read()
+        self.full.fromfile(self.fp, self.fileSize/self.full.itemsize)
         # Reading header
-        self.fp.seek(0)
-        self.header = self.fp.read(128)
-        self.data = self.fp.read()
+        self.header = self.full[0:0x80]
+        self.data = self.full[0x80:]
         pass
     
     def fromData(self, data):
@@ -37,7 +36,7 @@ class GmoFile():
     
     def extractGim(self):
         try:
-            offset = self.full.index(MIG_MAGIC)
+            offset = self.full.tostring().index(MIG_MAGIC)
             self.gim.fromData(self.full, offset)
         except:
             print 'No MIG found'
@@ -60,7 +59,7 @@ class GimFile():
         self.width = 0
         self.height = 0
         self.compressed = False
-        self.full = ''
+        self.full = array.array('B')
         self.header = ''
         self.footer = ''
         self.data = ''
@@ -82,11 +81,10 @@ class GimFile():
         # Get filesize
         self.fileSize = os.path.getsize(self.fn)
         # Read full file
-        self.full = self.fp.read()
+        self.full.fromfile(self.fp, self.fileSize/self.full.itemsize)
         # Reading header
-        self.fp.seek(0)
-        self.header = self.fp.read(128)
-        self.data = self.fp.read()
+        self.header = self.full[0:0x80]
+        self.data = self.full[0x80:]
         # Check image header
         self.checkHeader()
         self.checkFooter()
@@ -98,6 +96,10 @@ class GimFile():
     def fromData(self, data, offset = 0):
         # Just using the given offset for the master file
         self.full = data[offset:]
+        # Check if the array was passed
+        if not isinstance(self.full, array.array):
+            self.full = array.array('B')
+            self.full.fromstring(data[offset:])
         self.header = self.full[0:0x80]
         self.data = self.full[0x80:]
         # Check header and footer
@@ -109,21 +111,16 @@ class GimFile():
         pass
     
     def checkHeader(self):
-        # Read checksum - first 3 bytes
-        checkSum = 0
-        for i in xrange(3):
-            checkSum += struct.unpack('B', self.header[i])[0]
-        # It should be 221 (0x4D 0x49 0x47 -> MIG)
-        if checkSum == 221:
-            # [72:74] <- 74 is not included, so it's only 72 and 73
-            self.width = struct.unpack('H', self.header[72:74])[0]
-            self.height = struct.unpack('H', self.header[74:76])[0]
+        # Check magic
+        if self.header[0:3].tostring() == MIG_MAGIC:
+            self.width = self.header[73]*256 + self.header[72]
+            self.height = self.header[75]*256 + self.header[74]
             # Check for inversion
-            invByte = struct.unpack('B', self.header[0x30])[0]
+            invByte = self.header[0x30]
             if invByte == 4:
                 self.inverted = True
                 # Get palette position
-                bitDepth = struct.unpack('B', self.full[0x4C])[0]
+                bitDepth = self.full[0x4C]
                 self.palettePosition = len(self.full) - (2 ** bitDepth)*4
                 self.data = self.full[128:self.palettePosition]
             return True
@@ -132,9 +129,9 @@ class GimFile():
     def checkFooter(self):
         try:
             # Try to find it
-            self.full.index('GimConv')
+            self.full.tostring().index('GimConv')
             # Footer starts with 0xff 0x00 0x00 0x00
-            footerStartIdx = self.full[::-1].index('\x00\x00\x00\xff') + 4
+            footerStartIdx = self.full[::-1].tostring().index('\x00\x00\x00\xff') + 4
             self.palettePosition -= footerStartIdx
             self.data = self.full[128:self.palettePosition]
         except:
@@ -144,7 +141,7 @@ class GimFile():
         
     
     def getPalette(self):
-        bitDepth = struct.unpack('B', self.full[0x4C])[0]
+        bitDepth = self.full[0x4C]
         self.paletteSize = 2 ** bitDepth
         # For 32 bits there's no color palette
         if bitDepth != 32:
@@ -153,10 +150,10 @@ class GimFile():
                 color = [None] * 4
                 # Pallete position
                 position = self.palettePosition + i*4
-                color[0] = struct.unpack('B', self.full[position])[0]
-                color[1] = struct.unpack('B', self.full[position + 1])[0]
-                color[2] = struct.unpack('B', self.full[position + 2])[0]
-                color[3] = struct.unpack('B', self.full[position + 3])[0]
+                color[0] = self.full[position]
+                color[1] = self.full[position + 1]
+                color[2] = self.full[position + 2]
+                color[3] = self.full[position + 3]
                 self.palette.append(tuple(color))
         else:
             pass
@@ -167,7 +164,7 @@ class GimFile():
         self.image = [0] * self.width*self.height
         self.arrangeByteImage()  
         
-        bitDepth = struct.unpack('B', self.full[0x4C])[0]
+        bitDepth = self.full[0x4C]
         byteSize = self.width*self.height * bitDepth/8
         byteHeight = self.height * 8 / bitDepth
         byteWidth = self.width * 8 / bitDepth
@@ -176,7 +173,7 @@ class GimFile():
         if bitDepth == 32:
             # For 32 bits there's no color palette
             for i in xrange(byteSize):
-                color[i%4] = struct.unpack('B', self.byteImage[i])[0]
+                color[i%4] = self.byteImage[i]
                 # Inverting alpha
                 if i%4 == 3:
                     color[i%4] = 255 - color[i%4]
@@ -195,7 +192,7 @@ class GimFile():
                         posByte = x + int(math.ceil(float(self.width)/blockWidth)*blockWidth)*y
                         pos = x + y*byteWidth
                         # Get color index
-                        colorIdx = struct.unpack('B', self.byteImage[posByte])[0]
+                        colorIdx = self.byteImage[posByte]
                         if bitDepth == 4:
                             pos1 = 2*x+1 + (y+1)*byteWidth/2
                             pos2 = 2*x + (y+1)*byteWidth/2
@@ -204,7 +201,7 @@ class GimFile():
                         else:
                             self.image[pos] = self.palette[colorIdx]
                     except:
-						continue
+                        continue
         pass
     
     def arrangeByteImage(self):
@@ -230,14 +227,14 @@ class GimFile():
         # Add few blocks to process the last part of the image (it can be not divided by blockHeight)
         #numBlocks += blockRow - self.height % blockHeight
         # For 32-bit images block number should be x4 (4-byte groups)
-        if struct.unpack('B', self.full[0x4C])[0] == 32:
+        if self.full[0x4C] == 32:
             numBlocks *= 4
             self.byteImage *= 4
             blockRow *= 4
             byteWidth *= 4
         # If the image is just too small
         if numBlocks == 0:
-            bitDepth = struct.unpack('B', self.full[0x4C])[0]
+            bitDepth = self.full[0x4C]
             for row in xrange(byteHeight):
                 for col in xrange(byteWidth * bitDepth/8):
                     bytePos = col + row * byteWidth * 8/bitDepth
