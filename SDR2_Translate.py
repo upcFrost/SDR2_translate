@@ -547,8 +547,15 @@ class SDR2_Translate(Frame):
         proceed = tkMessageBox.askyesno("WARNING", question)
         if proceed:
             i = int(self._FlowList.curselection()[0])
+            # Delete from lists
             self._FlowList.delete(i)
+            # Change strings section offset
+            offset = 0x02 + len(self.Lin.pars_list[i])
+            self.Lin.baseoffset -= offset
+            # Delete opcode, action and parameters
+            del self.Lin.opcode_list[i]
             del self.Lin.action_list[i]
+            del self.Lin.pars_list[i]
         pass
 
     def _on_FilterFlowList_check(self,Event=None):
@@ -611,6 +618,9 @@ class SDR2_Translate(Frame):
             # Set speaker
             if code == WRD_SPEAKER:
                 self.scene.speaker = self.charNames[pars[0][1]]
+            # Load 3D map
+            if code == WRD_LOAD_MAP:
+                self.set_map(pars[0][1])
             # Go to the next script
             if code == WRD_GOTO_SCRIPT:
                 question = 'Go to the next script: e%02d_%03d_%03d.lin?' % (pars[0][1], pars[1][1], pars[2][1])
@@ -626,6 +636,43 @@ class SDR2_Translate(Frame):
                     next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
                     self.decodeFile(next_fn)
         pass
+    
+    def set_map(self, idx):
+        print "Setting map %d" % idx
+        fn = os.path.join(GameDataLoc,'all','modelbg','bg_%03d.pak' % idx)
+        Pak = PakFile(fn)
+        Pak.getFiles()
+        # Find every gim/gmo in pak and add it to the scene bgd
+        for file in Pak.files:
+            if '.gim' in file[0]:
+                # Decode it
+                GimImage = GimFile()
+                GimImage.fromData(file[1])
+                GimImage.getImage()
+                pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
+                pilImage.putdata(GimImage.image)
+                # Add it to the bgd list
+                self.scene.bgd.append(ImageTk.PhotoImage(pilImage))
+                # Show it on the screen
+                POS_X = (2*SCREEN_W - GimImage.width)/2
+                POS_Y = (2*SCREEN_H - GimImage.height)/2
+                self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd[-1])
+            elif '.gmo' in file[0]:
+                # Decode it
+                GmoImage = GmoFile()
+                GmoImage.fromData(file[1])
+                GmoImage.extractGim()
+                GmoImage.gim.getImage()
+                pilImage = PIL.Image.new("RGBA", (GmoImage.gim.width, GmoImage.gim.height))
+                pilImage.putdata(GmoImage.gim.image)
+                # Add it to the bgd list
+                self.scene.bgd.append(ImageTk.PhotoImage(pilImage))
+                # Show it on the screen
+                POS_X = (2*SCREEN_W - GmoImage.gim.width)/2
+                POS_Y = (2*SCREEN_H - GmoImage.gim.height)/2
+                self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd[-1])
+        pass
+                
     
     def _on_FlowList_select_Pak(self):
         if self._FlowList.size() > 0:
@@ -659,7 +706,7 @@ class SDR2_Translate(Frame):
                 GmoImage.fromData(file[1])
                 GmoImage.extractGim()
                 GmoImage.gim.getImage()
-                pilImage = PIL.Image.new("RGBA", (GmiImage.gim.width, GmoImage.gim.height))
+                pilImage = PIL.Image.new("RGBA", (GmoImage.gim.width, GmoImage.gim.height))
                 pilImage.putdata(GmoImage.gim.image)
                 self.scene.sprite = ImageTk.PhotoImage(pilImage)
                 POS_X = (2*SCREEN_W - GmoImage.gim.width)/2
@@ -974,7 +1021,7 @@ try:
     #Put lines to import other modules of this project here
     import ttk, PIL, tkMessageBox, os, re, struct, tkFileDialog, tkSimpleDialog
     from PIL import Image, ImageTk, ImageDraw, ImageFont
-    from gim2png import GimFile, GmoFile
+    from GimFile import GimFile, GmoFile
     from PakFile import PakFile
     from OpCodes import *
     from Common import *

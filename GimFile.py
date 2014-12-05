@@ -29,7 +29,10 @@ class GmoFile():
         pass
     
     def fromData(self, data):
-        self.full = data
+        if isinstance(data, array.array):
+            self.full = data
+        else:
+            self.full.fromstring(data)
         self.header = self.full[0:0x80]
         self.data = self.full[0x80:]
         pass
@@ -39,7 +42,7 @@ class GmoFile():
             offset = self.full.tostring().index(MIG_MAGIC)
             self.gim.fromData(self.full, offset)
         except:
-            print 'No MIG found'
+            print 'No MIG data found'
         pass
 
 class GimFile():
@@ -71,6 +74,7 @@ class GimFile():
         self.palettePosition = ''
         self.paletteSize = 256
         self.palette = []
+        self.bitDepth = -1;
         pass
         
     def openGim(self, fn):
@@ -120,9 +124,10 @@ class GimFile():
             if invByte == 4:
                 self.inverted = True
                 # Get palette position
-                bitDepth = self.full[0x4C]
-                self.palettePosition = len(self.full) - (2 ** bitDepth)*4
-                self.data = self.full[128:self.palettePosition]
+                self.bitDepth = self.full[0x4C]
+                if self.bitDepth != 32:
+                    self.palettePosition = len(self.full) - (2 ** self.bitDepth)*4
+                    self.data = self.full[0x80:self.palettePosition]
             return True
         return False
 
@@ -141,10 +146,13 @@ class GimFile():
         
     
     def getPalette(self):
-        bitDepth = self.full[0x4C]
-        self.paletteSize = 2 ** bitDepth
+        self.paletteSize = int(2 ** self.bitDepth)
         # For 32 bits there's no color palette
-        if bitDepth != 32:
+        if self.bitDepth != 32:
+            # Adjust palette if file has some trailing zeros
+            first_nonzero = next((i for i, x in enumerate(self.full[::-1]) if x), None)
+            if first_nonzero:
+                self.palettePosition -= first_nonzero
             for i in xrange(self.paletteSize):
                 # 4 Bytes for each color (RGBA)
                 color = [None] * 4
@@ -159,18 +167,22 @@ class GimFile():
             pass
         pass
     
-    def getImage(self):
+    def getImage_OLD(self):
         self.getPalette()
         self.image = [0] * self.width*self.height
         self.arrangeByteImage()  
         
-        bitDepth = self.full[0x4C]
-        byteSize = self.width*self.height * bitDepth/8
-        byteHeight = self.height * 8 / bitDepth
-        byteWidth = self.width * 8 / bitDepth
+        byteSize = self.width*self.height * self.bitDepth/8
+        byteHeight = self.height
+        byteWidth = self.width 
         color = [None] * 4
         
-        if bitDepth == 32:
+        #if self.bitDepth == 4:
+        #    # Stretch it, because bytes're coupled
+        #    tmp = [[l >> 4, l & 0xf] for l in self.byteImage]
+        #    self.byteImage = [x for sublist in tmp for x in sublist]
+        
+        if self.bitDepth == 32:
             # For 32 bits there's no color palette
             for i in xrange(byteSize):
                 color[i%4] = self.byteImage[i]
@@ -183,7 +195,7 @@ class GimFile():
                 # For the last one
                 if i == byteSize - 1:
                     self.image[-1] = tuple(color)
-        else:
+        elif self.bitDepth == 8:
             for y in xrange(byteHeight):
                 for x in xrange(byteWidth):
                     try:
@@ -193,18 +205,88 @@ class GimFile():
                         pos = x + y*byteWidth
                         # Get color index
                         colorIdx = self.byteImage[posByte]
-                        if bitDepth == 4:
-                            pos1 = 2*x+1 + (y+1)*byteWidth/2
-                            pos2 = 2*x + (y+1)*byteWidth/2
-                            self.image[pos1] = self.palette[(colorIdx & 0xf0) / 0x10]
-                            self.image[pos2] = self.palette[colorIdx & 0x0f]
-                        else:
-                            self.image[pos] = self.palette[colorIdx]
+                        self.image[pos] = self.palette[colorIdx]
                     except:
                         continue
+        elif self.bitDepth == 4:
+            self.aa = []
+            for y in xrange(byteHeight):
+                for x in xrange(byteWidth):
+                    try:
+                        # Calculate pixel position
+                        blockWidth = 16
+                        posByte = x + int(math.ceil(float(self.width)/blockWidth)*blockWidth)*y
+                        self.aa.append(posByte)
+                        # Get color index
+                        colorIdx = self.byteImage[posByte]
+                        # Calculate positions
+                        pos1 = (2*x) + y*self.width
+                        pos2 = (2*x+1) + y*self.width
+                        self.image[pos1] = self.palette[(colorIdx & 0xf0) / 0x10]
+                        self.image[pos2] = self.palette[colorIdx & 0x0f]
+                    except:
+                        continue
+        else:
+            print "Unknown bit depth!"
         pass
     
+    
+    #
+    # FOR TESTING ONLY, DOES NOT WORK
+    #
+    def getImage(self):
+        self.arrangeByteImage()
+        if self.bitDepth == 32:
+            self.image = map(self.long_to_bytearray, self.byteImage)
+        else:
+            self.getPalette()
+            self.image = [self.palette[i] for i in self.byteImage]
+        pass
+	
+    #
+    # FOR TESTING ONLY, DOES NOT WORK
+    #
     def arrangeByteImage(self):
+        # We need to group the items differently for different bit depths
+        tmpData = self.data
+        if self.bitDepth == 32:
+            # For 32-bit image - read by 4 bytes
+            tmpData = array.array('I')
+            tmpData.fromstring(self.data.tostring())
+        if self.bitDepth == 4:
+            # For 4-bit image - split each byte into 2
+            tmpData = array.array('B')
+            tmpData = self.flattenList(map(self.split_bytes, self.data))
+        # Block Width
+        bw = 128/self.bitDepth
+        # Block Height
+        bh = 8
+        # Blocks in one row
+        blk_row = int(math.ceil(float(self.width) / bw))
+        # Total number of rows of height bh
+        blk_height = int(math.ceil(float(self.height) / bh))
+        # Original data organized by blocks of the given width
+        tmpMtx = self.to_matrix(tmpData, bw)
+        self.aa = tmpMtx
+        # Index transformation matrix - shows how 16x1 blocks will be permuted
+        transMtx = self.blockTransformMtx(blk_row, bh)
+        tmpImage = []
+        # For each bh block row
+        for i in xrange(blk_height):
+            try:
+                tmpImage.append([tmpMtx[b + blk_row*bh*i] for b in transMtx])
+            except:
+                continue
+        # Flatten the list
+        tmpImage = self.flattenList(self.flattenList(tmpImage))
+        # Delete those list items which were added to make it into 16x8 blocks
+        added_len = bw - self.width % bw
+        byte_width = self.width + added_len if self.width % bw != 0 else self.width
+        self.byteImage = [tmpImage[i*byte_width:i*byte_width+self.width] for i in xrange(self.height)]
+        self.byteImage = self.flattenList(self.byteImage)
+        pass
+        
+    def arrangeByteImage_OLD(self):
         # Image is arranges into number of blocks'
         # Width is 16 bytes for all images except 4-bit images
         blockWidth = 16
@@ -227,17 +309,16 @@ class GimFile():
         # Add few blocks to process the last part of the image (it can be not divided by blockHeight)
         #numBlocks += blockRow - self.height % blockHeight
         # For 32-bit images block number should be x4 (4-byte groups)
-        if self.full[0x4C] == 32:
+        if self.bitDepth == 32:
             numBlocks *= 4
             self.byteImage *= 4
             blockRow *= 4
             byteWidth *= 4
         # If the image is just too small
         if numBlocks == 0:
-            bitDepth = self.full[0x4C]
             for row in xrange(byteHeight):
-                for col in xrange(byteWidth * bitDepth/8):
-                    bytePos = col + row * byteWidth * 8/bitDepth
+                for col in xrange(byteWidth * self.bitDepth/8):
+                    bytePos = col + row * byteWidth * 8/self.bitDepth
                     self.byteImage[bytePos] = self.full[128 + col + blockWidth*row]
             pass 
         # If everything's ok    
@@ -273,3 +354,19 @@ class GimFile():
         # Remove all Nones (is the image height mod blockHeight != 0)
         self.byteImage = filter(lambda z: z != None, self.byteImage)
         pass
+    
+    def to_matrix(self, l, n):
+        return [l[i:i+n] for i in xrange(0, len(l), n)]
+    
+    def blockTransformMtx(self, blocksInWidth, bh = 8):
+        return self.flattenList([range(i,blocksInWidth*bh,bh) for i in xrange(bh)])
+        
+    def flattenList(self, list):
+        return [item for sublist in list for item in sublist]
+
+    def long_to_bytearray(self, l):
+        return tuple(l >> i & 0xff for i in (0,8,16,24))
+
+    def split_bytes(self, l):
+        return [l >> i & 0xf for i in (0,4)]
+    

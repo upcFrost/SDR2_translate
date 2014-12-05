@@ -22,7 +22,7 @@ class Scene():
         box_type   = BOX_TYPES.normal,
         ammo       = -1,
         present    = -1,
-        bgd        = -1,
+        bgd        = [],
         cutin      = -1,
         flash      = [],
         movie      = -1,
