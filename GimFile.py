@@ -150,8 +150,12 @@ class GimFile():
         # For 32 bits there's no color palette
         if self.bitDepth != 32:
             # Adjust palette if file has some trailing zeros
-            first_nonzero = next((i for i, x in enumerate(self.full[::-1]) if x), None)
-            if first_nonzero:
+            i = 1
+            while self.full[-i:-i-4:-1] == array.array('B', [0,0,0,0]):
+                i += 4
+            first_nonzero = i-1
+            #first_nonzero = next((i for i, x in enumerate(self.full[::-1]) if x), None)
+            if first_nonzero != 0:
                 self.palettePosition -= first_nonzero
             for i in xrange(self.paletteSize):
                 # 4 Bytes for each color (RGBA)

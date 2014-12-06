@@ -344,11 +344,6 @@ class SDR2_Translate(Frame):
         self._EditString2Len = StringVar()
         self._EditString3Len = StringVar()
         self._StringIdx = StringVar()
-        self._MenuFrame = Frame(self)
-        self._MenuFrame.pack(anchor='nw',fill='both',side='top')
-        self._RootMenu = Menu(self._MenuFrame,tearoff=0,type='menubar')
-        self._RootMenu.pack(anchor='nw',expand='yes',fill='both',side='left')
-        self._RootMenu.bind('<Map>',self._on_RootMenu_Map)
         self._FileNameFrame = Frame(self)
         self._FileNameFrame.pack(fill='x',side='top')
         self._FileName = Label(self._FileNameFrame
@@ -404,7 +399,7 @@ class SDR2_Translate(Frame):
         self._CanvasFrame.pack(side='left')
         self._ScreenView = Canvas(self._CanvasFrame,background='#000000'
             ,height=SCREEN_H,width=SCREEN_W)
-        self._ScreenView.pack(expand='yes',side='top')
+        self._ScreenView.pack(expand='yes',side='left')
         self._Frame10 = Frame(self._Frame9)
         self._Frame10.pack(side='left')
         self._EditString1 = Entry(self._Frame10
@@ -483,6 +478,20 @@ class SDR2_Translate(Frame):
         self._TabHost.add(self._MiscFrame, text="Misc")
         # Filter
         self._FilterFlowList.deselect()
+        # Set menu
+        self._RootMenu = Menu(Master)
+        # File menu
+        FileMenu = Menu(self._RootMenu, tearoff=0)
+        FileMenu.add_command(label="Open", command=self.openFile)
+        FileMenu.add_command(label="Save", command=self.saveFile)
+        FileMenu.add_command(label="Extract Pak", command=self.extractPak)
+        FileMenu.add_command(label="Exit", command=exit)
+        self._RootMenu.add_cascade(label="File", menu=FileMenu)
+        # Options menu
+        OptionsMenu = Menu(self._RootMenu, tearoff=0)
+        OptionsMenu.add_command(label="Game Data", command=self.openGameDataOpts)
+        self._RootMenu.add_cascade(label="Options", menu=OptionsMenu)
+        Master.config(menu=self._RootMenu)
     #
     #Start of event handler methods
     #
@@ -672,7 +681,6 @@ class SDR2_Translate(Frame):
                 POS_Y = (2*SCREEN_H - GmoImage.gim.height)/2
                 self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd[-1])
         pass
-                
     
     def _on_FlowList_select_Pak(self):
         if self._FlowList.size() > 0:
@@ -838,21 +846,7 @@ class SDR2_Translate(Frame):
         self.scene.text_img = ImageTk.PhotoImage(pilImage)
         self.scene.text_idx = self._ScreenView.create_image(SCREEN_W/2, SCREEN_H - TEXT_H/2,image=self.scene.text_img, tag = 'text')
         pass    
-
-    def _on_RootMenu_Map(self,Event=None):
-        # File menu
-        FileMenu = Menu(self._RootMenu, tearoff=0)
-        FileMenu.add_command(label="Open", command=self.openFile)
-        FileMenu.add_command(label="Save", command=self.saveFile)
-        FileMenu.add_command(label="Extract Pak", command=self.extractPak)
-        FileMenu.add_command(label="Exit", command=exit)
-        self._RootMenu.add_cascade(label="File", menu=FileMenu)
-        # Options menu
-        OptionsMenu = Menu(self._RootMenu, tearoff=0)
-        OptionsMenu.add_command(label="Game Data", command=self.openGameDataOpts)
-        self._RootMenu.add_cascade(label="Options", menu=OptionsMenu)
-        pass
-    
+        
     def openGameDataOpts(self):
         gd = GameData()
         pass
@@ -943,6 +937,7 @@ class SDR2_Translate(Frame):
         
     def exit():
         Root.quit()
+
 
     def _on_SetStringBtn_Button_1(self,Event=None):
         # For .lin file we're just changing the string in its string_list
