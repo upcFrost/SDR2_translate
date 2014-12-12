@@ -686,8 +686,9 @@ class SDR2_Translate(Frame):
         if self._FlowList.size() > 0:
             # Now working not with actions, but with files
             i = int(self._FlowList.curselection()[0])
+            print i
             # If we're returning from sub-pak
-            if self._FlowList.get(i)[0] == '..':    
+            if i == 0 and self.pak_level > 0:    
                 self._FlowList.delete(0,END)
                 for f in self.Pak.files:
                     self._FlowList.insert(END, "%s" % f[0])                
@@ -697,7 +698,8 @@ class SDR2_Translate(Frame):
             if self.pak_level == 0:
                 file = self.Pak.files[i]
             else:
-                file = self.internalPak.files[i]
+                # -1 because the first one is '..'
+                file = self.internalPak.files[i-1]
             # Checking the file type
             if '.gim' in file[0]:
                 GimImage = GimFile()
@@ -910,6 +912,7 @@ class SDR2_Translate(Frame):
             # Clear everything
             self._StringList.delete(0,END)
             self._FlowList.delete(0,END)
+            self.pak_level = 0
             # Put all filenames into the flow list
             for f in self.Pak.files:
                 self._FlowList.insert(END, "%s" % f[0])

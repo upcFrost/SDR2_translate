@@ -244,6 +244,15 @@ EBOOT_PATCHES = [
       {POS: 0x0018046C, ORIG: array.array('B', [0x25,0x49]), PATCH: array.array('B', [0xAB,0xAA])},
     ]
   },
+  {NAME: "Fix Line Height", ENABLED: True, CFG_ID: "06_line_height_fix", DATA:
+    [
+      {POS: 0x001F9BB0, ORIG: array.array('B', [0x00,0x00,0x08,0x43]), PATCH: array.array('B', [0x00,0x00,0x10,0x43])},
+      # It fixes the offset. Offset is calculated in the cycle between 0887A740 and 0887A768 in memory.
+      # Offset by Y is in f3, which is calculated as f3 = f0 - f24.
+      # f24 value is gathered at 0887A160, which 0x001F9BB0 in EBOOT. its value is  0x43080000
+      # It corresponds to 136 in FPU. If changed to 0x43100000, which is 144, it does the trick
+    ]
+  },
   {NAME: "Custom CLT", ENABLED: False, CFG_ID: CLT_CFG_ID, DATA: []},
 ]
 
@@ -342,14 +351,14 @@ def apply_eboot_patches(eboot):
       l = len(item[key])
       eboot[item[POS]:item[POS]+l] = item[key]
   
-#  eboot = apply_sys_lang(eboot)
-#  eboot = apply_clt_patch(eboot)
+  eboot = apply_sys_lang(eboot)
+  eboot = apply_clt_patch(eboot)
   
   return eboot
 
 if __name__ == "__main__":
-  src = "testing/EBOOT.BIN"
-  dst = "testing/EBOOT_PATCHED.BIN"
+  src = "Test/EBOOT.BIN"
+  dst = "Test/EBOOT_PATCHED.BIN"
   
   test = array.array('B')
   test.fromfile(open(src,'rb'), os.path.getsize(src)/test.itemsize)
