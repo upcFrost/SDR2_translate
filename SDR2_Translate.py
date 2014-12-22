@@ -141,21 +141,38 @@ class GameData(Toplevel):
             ,self._on_BrowseLocBtn_Button_1)
         self._Frame1 = Frame(self)
         self._Frame1.pack(side='top')
-        self._Label1 = Label(self._Frame1)
-        self._Label1.pack(side='left')
-        self._Entry2 = Entry(self._Frame1)
-        self._Entry2.pack(side='left')
+        self._OkBtn = Button(self._Frame1,text='Ok')
+        self._OkBtn.pack(side='left')
+        self._OkBtn.bind('<ButtonPress-1>',self._on_OkBtn_Button_1)
+        self._CancelBtn = Button(self._Frame1,text='Cancel')
+        self._CancelBtn.pack(side='left')
         #
         #Your code here
         #
-        self.GameDataLoc.set(GameDataLoc)
+        try:
+            self.GameDataLoc.set(GameDataLoc)
+        except:
+            self.GameDataLoc.set('')
     #
     #Start of event handler methods
     #
 
 
     def _on_BrowseLocBtn_Button_1(self,Event=None):
-        fn = tkFileDialog.askdirectory('.',False,'Choose Game Data directory',Trues)
+        loc = tkFileDialog.askdirectory('.',False,'Choose Game Data directory',Trues)
+        if loc:
+            self.GameDataLoc.set(loc)
+        pass
+
+    def _on_OkBtn_Button_1(self,Event=None):
+        # Write config
+        config = ConfigParser.ConfigParser()
+        config.add_section('Game Data')
+        config.set('Game Data', 'Game_Data_Location', self.GameDataLoc.get())
+        with open('config.cfg', 'wb') as configfile:
+            config.write(configfile)
+        # Exit
+        self.destroy()
         pass
     #
     #Start of non-Rapyd user code
@@ -327,6 +344,8 @@ class SDR2_Translate(Frame):
         self.Lin = LinFile()
         self.mode = ''
         self.pak_level = 0
+        self.pak_filenum = 0
+        self.pak_stack = []
         self.visible_opcodes = OP_FUNCTIONS
         self.hidden_opcodes = {}
 
@@ -606,10 +625,10 @@ class SDR2_Translate(Frame):
             # What to do for different opcodes
             # Show sprite
             if code == WRD_SPRITE:
-                self.showSprite(pars)
+                GuiFuncs.showSprite(self, GameDataLoc, pars)
             # Show flash
             if code == WRD_FLASH:
-                self.showFlash(pars)
+                GuiFuncs.showFlash(self, GameDataLoc, pars)
             # Text highlighting
             if code == WRD_CLT:
                 self.scene.text_clt = True
@@ -620,7 +639,7 @@ class SDR2_Translate(Frame):
                 self.scene.text = self._StringList.get(pars[0][1])
             # Print next string from FIFO
             if code == WRD_PRINT_LINE:
-                self.printLine()
+                GuiFuncs.printLine(self)
             # If waiting for input (go to the next line waiting)
             if code == WRD_WAIT_INPUT:
                 self.scene.text = ''
@@ -686,20 +705,27 @@ class SDR2_Translate(Frame):
         if self._FlowList.size() > 0:
             # Now working not with actions, but with files
             i = int(self._FlowList.curselection()[0])
-            print i
             # If we're returning from sub-pak
-            if i == 0 and self.pak_level > 0:    
+            if i == 0 and self.pak_level > 0:
+                # Save internal pak
+                question = "Save changes?"
+                proceed = tkMessageBox.askyesno("WARNING", question)
+                if proceed:
+                    # Create a data tuple
+                    filename = self.pak_stack[-2].files[self.pak_filenum][0]
+                    data = self.pak_stack[-1].to_string()
+                    self.pak_stack[-2].files[self.pak_filenum] = (filename, data)
+                # Clear flowlist and pop the last element of the pak stack
                 self._FlowList.delete(0,END)
-                for f in self.Pak.files:
+                self.pak_stack.pop()
+                # Populate flowlist with original pak's files
+                for f in self.pak_stack[-1].files:
                     self._FlowList.insert(END, "%s" % f[0])                
                 self.pak_level -= 1
+                self._FlowList.selection_clear(i)
                 pass
             # If not - looking at the current pak file and level
-            if self.pak_level == 0:
-                file = self.Pak.files[i]
-            else:
-                # -1 because the first one is '..'
-                file = self.internalPak.files[i-1]
+            file = self.pak_stack[-1].files[i - self.pak_level]
             # Checking the file type
             if '.gim' in file[0]:
                 GimImage = GimFile()
@@ -726,129 +752,23 @@ class SDR2_Translate(Frame):
                 self.scene.text = file[1].decode('utf16')
                 self._CurrentEditString1.set(self.scene.text)
             elif '.dat' in file[0]:
-                self.pak_level += 1
-                # We'll use it as a directory
-                self._FlowList.delete(0,END)
-                # Inserting the 'go back' value
-                self._FlowList.insert(END, '..')
-                # Now unpack the file
-                self.internalPak = PakFile()
-                self.internalPak.fromData(file[1])
-                for f in self.internalPak.files:
-                    self._FlowList.insert(END, "%s" % f[0])
+                question = "Try unpacking binary file?"
+                proceed = tkMessageBox.askyesno("WARNING", question)
+                if proceed:
+                    self.pak_level += 1
+                    self.pak_filenum = i
+                    # We'll use it as a directory
+                    self._FlowList.delete(0,END)
+                    # Inserting the 'go back' value
+                    self._FlowList.insert(END, '..')
+                    # Now unpack the file
+                    pak = PakFile()
+                    pak.fromData(file[1])
+                    self.pak_stack.append(pak)
+                    for f in self.pak_stack[-1].files:
+                        self._FlowList.insert(END, "%s" % f[0])
         pass
-        
-    def showSprite(self, pars):
-        fn = os.path.join(GameDataLoc,'all','cg', 'bustup_%02d_%02d.gim' % (pars[1][1], pars[2][1]))
-        GimImage = GimFile()
-        GimImage.openGim(fn)
-        GimImage.getImage()
-        pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
-        pilImage.putdata(GimImage.image)
-        self.scene.sprite = ImageTk.PhotoImage(pilImage)
-        POS_X = (2*SCREEN_W - GimImage.width)/2
-        POS_Y = (2*SCREEN_H - GimImage.height)/2
-        imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.sprite, tag = 'sprite')
-        pass
-    
-    def showFlash(self, pars):
-        root = GameDataLoc + 'all/flash/'
-        if not os.path.isfile(root + 'fla_%03d.pak' % pars[0][1]):
-            root = GameDataLoc + 'jp/flash/'
-        try:
-            Pak = PakFile(root + 'fla_%03d.pak' % pars[0][1])
-            Pak.getFiles()
-        except:
-            # If there's no such file
-            Pak = PakFile(root + 'fla_%03d.pak' % 999)
-            Pak.getFiles()
-        # FIXME: need to check its number
-        idx = pars[-1][1]
-        if idx == 255:
-            # Erase everything from the screen
-            self._ScreenView.delete(ALL)
-            self.scene.flash = []
-            return 0
-        # Else - check for image, numeration starts with 1
-        imageFile = Pak.files[idx - 1]
-        if '.gmo' in imageFile[0]:
-            GmoImage = GmoFile()
-            GmoImage.fromData(imageFile[1])
-            GmoImage.extractGim()
-            GmoImage.gim.getImage()
-            image = GmoImage.gim.image
-            pilImage = PIL.Image.new("RGBA", (GmoImage.gim.width, GmoImage.gim.height))
-            pilImage.putdata(GmoImage.gim.image)
-            self.scene.flash.append(ImageTk.PhotoImage(pilImage))
-            POS_X = (2*SCREEN_W - GmoImage.gim.width)/2
-            POS_Y = (2*SCREEN_H - GmoImage.gim.height)/2
-            imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.flash[-1])
-            return 0
-        if '.gim' in imageFile[0]:
-            GimImage = GimFile()
-            GimImage.fromData(imageFile[1])
-            GimImage.getImage()
-            pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
-            pilImage.putdata(GimImage.image)
-            self.scene.flash.append(ImageTk.PhotoImage(pilImage))
-            POS_X = (2*SCREEN_W - GimImage.width)/2
-            POS_Y = (2*SCREEN_H - GimImage.height)/2
-            imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.flash[-1])
-            # Text should be kept on the top
-            self._ScreenView.tag_raise('text')
-            return 0
-        # If neither gim nor gmo - i don't know how to use sfl files yet
-        imagesprite = self._ScreenView.create_text(SCREEN_W/2, SCREEN_H/2, text="FLASH ANIMATION STUB")
-        return -1
-        pass
-    
-    def printLine(self):
-        # First delete the old line
-        try:
-            self._ScreenView.delete(self.scene.text_idx)
-        except:
-            print "No old line present on the screen"
-        # I'm using images here because of the following things: positioning, alpha and font
-        pilImage = PIL.Image.new("RGBA", (SCREEN_W, TEXT_H), (32,32,32,192))
-        draw = PIL.ImageDraw.Draw(pilImage)
-        font = PIL.ImageFont.truetype("rounded-mgenplus-2pp-regular.ttf", 20)
-        # First  - draw the speaker name at (20,0)
-        draw.text((20,0), self.scene.speaker, (255,255,255), font=font)
-        # Default highlighting
-        clt = 0
-        color = CLT_STYLES[clt].top_color
-        # Regex for finding highlighted regions
-        clt_marker = re.compile(r"\<CLT (\d+)\>(.*?)\<CLT\>", re.DOTALL)
-        clt_counter = 0
-        # The text is split into a list like [CLT0_TEXT, CLT_NUM, CLT_TEXT, CLT0_TEXT]
-        text = re.split(clt_marker, self.scene.text)
-        # Draw lines with the fixed line spacing
-        attSpacing = 20
-        x = 20 # Margin
-        y = 20  # Initial y
-        partNum = 0
-        for part in text:
-            # Reset text color
-            if partNum % 3 == 0:
-                clt = 0
-                color = CLT_STYLES[clt].top_color
-            # Every first out of 3 - CLT number (look at the list form once again)
-            if partNum % 3 == 1:
-                clt = int(part)
-                color = CLT_STYLES[clt].top_color
-            # Dealing with a string
-            else:
-                # Draw text with the color we need
-                for line in part.splitlines():
-                    draw.text( (x,y), line, color, font=font)
-                    y = y + attSpacing
-            # Next part
-            partNum += 1
-        # Draw the text on canvas
-        self.scene.text_img = ImageTk.PhotoImage(pilImage)
-        self.scene.text_idx = self._ScreenView.create_image(SCREEN_W/2, SCREEN_H - TEXT_H/2,image=self.scene.text_img, tag = 'text')
-        pass    
-        
+                
     def openGameDataOpts(self):
         gd = GameData()
         pass
@@ -907,25 +827,34 @@ class SDR2_Translate(Frame):
         if '.pak' in file:
             self.mode = '.pak'
             # Decode .pak file
-            self.Pak = PakFile(fn)
-            self.Pak.getFiles()
+            pak = PakFile(fn)
+            pak.getFiles()
+            # Append it into stack
+            self.pak_stack = []
+            self.pak_stack.append(pak)
             # Clear everything
             self._StringList.delete(0,END)
             self._FlowList.delete(0,END)
             self.pak_level = 0
             # Put all filenames into the flow list
-            for f in self.Pak.files:
+            for f in self.pak_stack[-1].files:
                 self._FlowList.insert(END, "%s" % f[0])
         
         # P3d file
         if '.p3d' in file:
-            # That's the same pak
             self.mode = '.pak'
             # Decode .pak file
-            self.Pak = P3dFile(fn)
-            self.Pak.getFiles()
+            pak = P3dFile(fn)
+            pak.getFiles()
+            # Append it into stack
+            self.pak_stack = []
+            self.pak_stack.append(pak)
+            # Clear everything
+            self._StringList.delete(0,END)
+            self._FlowList.delete(0,END)
+            self.pak_level = 0
             # Put all filenames into the flow list
-            for f in self.Pak.files:
+            for f in self.pak_stack[-1].files:
                 self._FlowList.insert(END, "%s" % f[0])
         pass
         
@@ -935,7 +864,7 @@ class SDR2_Translate(Frame):
         if '.lin' in fn:
             self.Lin.encodeLinFile(fn)
         if '.pak' in fn:
-            self.Pak.makePak(fn)
+            self.pak_stack[-1].makePak(fn)
         pass
         
     def exit():
@@ -972,9 +901,9 @@ class SDR2_Translate(Frame):
         elif self.mode == '.pak':
             str = self._CurrentEditString1.get()
             i = self.current_act_idx
-            l = list(self.Pak.files[i])
+            l = list(self.pak_stack[-1].files[i - self.pak_level])
             l[1] = str.encode('utf16')
-            self.Pak.files[i] = tuple(l)
+            self.pak_stack[-1].files[i - self.pak_level] = tuple(l)
         pass
 
     def _on_StringList_select(self,Event=None):
@@ -1018,6 +947,7 @@ try:
         sys.path.append('.')
     #Put lines to import other modules of this project here
     import ttk, PIL, tkMessageBox, os, re, struct, tkFileDialog, tkSimpleDialog
+    import GuiFuncs, ConfigParser
     from PIL import Image, ImageTk, ImageDraw, ImageFont
     from GimFile import GimFile, GmoFile
     from PakFile import PakFile
@@ -1028,11 +958,22 @@ try:
     from Character import *
     from LinFile import *
     from enum import *
-    
-    # Global options (should migrate those into a file or smth)
-    GameDataLoc = './game/'
-    
+ 
     if __name__ == '__main__':
+        # Read config
+        config_ok = False
+        while not config_ok:
+            config = ConfigParser.ConfigParser()
+            config.read('config.cfg')
+            try:
+                GameDataLoc = config.get('Game Data', 'Game_Data_Location')
+                config_ok = True
+            except:
+                w = GameData()
+                # Wait for the window to close
+                w.wait_window(w)
+                
+        # Load GUI
 
         Root = Tk()
         import Tkinter

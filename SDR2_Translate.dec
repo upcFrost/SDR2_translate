@@ -4,10 +4,10 @@ Common.py
 SDR2_Translate.py
  -Main- 0 5
  Filter 5 109
- GameData 114 51
- OpCodeCreator 165 143
- SDR2_Translate 308 697
- -Main- 1005 47
+ GameData 114 68
+ OpCodeCreator 182 143
+ SDR2_Translate 325 609
+ -Main- 934 59
 ResViewer.py
  -Main- 0 4
  ResViewer 4 74

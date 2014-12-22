@@ -56,6 +56,23 @@ class PakFile(object):
             fp.write(f[1])
         # Close file
         fp.close()
+
+    def to_string(self):
+        # Buffer
+        data = ''
+        # Number of files
+        data += struct.pack('I', len(self.files))
+        # First file offset (+1 for file count)
+        offset = (len(self.files) + 1) * 4
+        # Writing offsets for each file
+        for f in self.files:
+            data += struct.pack('I', offset)
+            offset += len(f[1])
+        # Writing files
+        for f in self.files:
+            data += f[1]
+        return data
+            
     ##################################################
     ### 
     ##################################################
