@@ -18,7 +18,7 @@
 ### If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
-import os, struct
+import os, math, struct
 from ext_guesser import guess_ext
 
 NULL_BYTE = '\x00'
@@ -49,10 +49,17 @@ class PakFile(object):
         offset = (len(self.files) + 1) * 4
         # Writing offsets for each file
         for f in self.files:
+            # Check offset size % 0x10 == 0
+            if not (offset % 0x10) == 0:
+                offset += 0x10 - (offset % 0x10)
             fp.write(struct.pack('I', offset))
             offset += len(f[1])
         # Writing files
         for f in self.files:
+            # Check string offset % 0x10 == 0
+            while not (fp.tell() % 0x10) == 0:
+                fp.write(struct.pack('B', 0))
+            # Write file into pak
             fp.write(f[1])
         # Close file
         fp.close()

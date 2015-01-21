@@ -896,7 +896,7 @@ class SDR2_Translate(Frame):
             self._StringList.insert(idx, final_string)
             # Show the new version
             self.scene.text = self._StringList.get(idx)
-            self.printLine()
+            GuiFuncs.printLine(self)
         # For .pak we're changing the Pak.files[i] content
         elif self.mode == '.pak':
             str = self._CurrentEditString1.get()

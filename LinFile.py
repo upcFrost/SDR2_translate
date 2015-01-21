@@ -121,7 +121,9 @@ class LinFile():
         fp.write(struct.pack('I',self.type))
         # Get second int
         fp.write(struct.pack('I',self.second_int))
-        # Get offset
+        # Check string base offset for 0x04 alignment
+        add_zeros = 0x4 - (self.baseoffset % 0x4)
+        self.baseoffset += add_zeros
         fp.write(struct.pack('I',self.baseoffset))
         # Encode base
         for i in xrange(len(self.action_list)):
@@ -135,6 +137,10 @@ class LinFile():
                 self.encodeOp(code, pars, fp)
             else:
                 fp.write(struct.pack('B', pars[0][1]))
+
+        # Add alignment zeros
+        for i in xrange(add_zeros):
+            fp.write(struct.pack('B', 0))
         
         # Encode strings header
         for i in xrange(len(self.string_list)):
