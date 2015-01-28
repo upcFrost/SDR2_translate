@@ -125,6 +125,7 @@ class GameData(Toplevel):
 
         apply(Toplevel.__init__,(self,Master),kw)
         self.GameDataLoc = StringVar()
+        self.DoneDataLoc = StringVar()
         self._Frame3 = Frame(self)
         self._Frame3.pack(side='top')
         self._GameDataLbl = Label(self._Frame3,text='Game Data Options')
@@ -137,8 +138,18 @@ class GameData(Toplevel):
         self._DataLoc.pack(side='left')
         self._BrowseLocBtn = Button(self._Frame2,text='Browse')
         self._BrowseLocBtn.pack(side='left')
-        self._BrowseLocBtn.bind('<ButtonPress-1>' \
+        self._BrowseLocBtn.bind('<ButtonRelease-1>' \
             ,self._on_BrowseLocBtn_Button_1)
+        self._Frame4 = Frame(self)
+        self._Frame4.pack(side='top')
+        self._DoneLbl = Label(self._Frame4,text='Path to Done Files')
+        self._DoneLbl.pack(side='left')
+        self._DoneLoc = Entry(self._Frame4,textvariable=self.DoneDataLoc)
+        self._DoneLoc.pack(side='left')
+        self._BrowseDoneBtn = Button(self._Frame4,text='Browse')
+        self._BrowseDoneBtn.pack(side='left')
+        self._BrowseDoneBtn.bind('<ButtonRelease-1>' \
+            ,self._on_BrowseDoneBtn_ButRel_1)
         self._Frame1 = Frame(self)
         self._Frame1.pack(side='top')
         self._OkBtn = Button(self._Frame1,text='Ok')
@@ -146,6 +157,7 @@ class GameData(Toplevel):
         self._OkBtn.bind('<ButtonPress-1>',self._on_OkBtn_Button_1)
         self._CancelBtn = Button(self._Frame1,text='Cancel')
         self._CancelBtn.pack(side='left')
+        self._CancelBtn.bind('<ButtonRelease-1>',self._on_CancelBtn_ButRel_1)
         #
         #Your code here
         #
@@ -153,15 +165,30 @@ class GameData(Toplevel):
             self.GameDataLoc.set(GameDataLoc)
         except:
             self.GameDataLoc.set('')
+        try:
+            self.DoneDataLoc.set(DoneDataLoc)
+        except:
+            self.DoneDataLoc.set('')
     #
     #Start of event handler methods
     #
 
 
+    def _on_BrowseDoneBtn_ButRel_1(self,Event=None):
+        loc = tkFileDialog.askdirectory()
+        if loc:
+            self.DoneDataLoc.set(loc)
+        pass
+
     def _on_BrowseLocBtn_Button_1(self,Event=None):
-        loc = tkFileDialog.askdirectory('.',False,'Choose Game Data directory',Trues)
+        loc = tkFileDialog.askdirectory()
         if loc:
             self.GameDataLoc.set(loc)
+        pass
+
+    def _on_CancelBtn_ButRel_1(self,Event=None):
+        # Exit
+        self.destroy()
         pass
 
     def _on_OkBtn_Button_1(self,Event=None):
@@ -169,6 +196,7 @@ class GameData(Toplevel):
         config = ConfigParser.ConfigParser()
         config.add_section('Game Data')
         config.set('Game Data', 'Game_Data_Location', self.GameDataLoc.get())
+        config.set('Game Data', 'Done_Data_Location', self.DoneDataLoc.get())
         with open('config.cfg', 'wb') as configfile:
             config.write(configfile)
         # Exit
@@ -341,9 +369,8 @@ class SDR2_Translate(Frame):
         self.currentImage = ''
         self.scene = Scene()
         self.charNames = getCharNames(GameDataLoc)
-        self.Lin = LinFile()
+        self.lin_stack = []
         self.mode = ''
-        self.pak_level = 0
         self.pak_filenum = 0
         self.pak_stack = []
         self.visible_opcodes = OP_FUNCTIONS
@@ -377,24 +404,31 @@ class SDR2_Translate(Frame):
         self._Frame1 = Frame(self._OpFrame)
         self._Frame1.pack(fill='both',side='top')
         self._FlowFrameLabel = Label(self._Frame1,text='Actions List')
-        self._FlowFrameLabel.pack(anchor='nw',fill='x',side='left')
+        self._FlowFrameLabel.pack(anchor='nw',side='left')
         self._FilterFlowList = Checkbutton(self._Frame1
             ,command=self._on_FilterFlowList_check,text='Filtered'
             ,variable=self._Filtered)
         self._FilterFlowList.pack(anchor='ne',side='right')
+        self._FlowFileUpBtn = Button(self._Frame1,state='disabled',text='UP')
+        self._FlowFileUpBtn.pack(side='right')
+        self._FlowFileUpBtn.bind('<ButtonRelease-1>' \
+            ,self._on_FlowFileUpBtn_ButRel_1)
         self._FlowFrame = Frame(self._OpFrame)
         self._FlowFrame.pack(expand='yes',fill='both',side='top')
         self._FlowList = Listbox(self._FlowFrame)
-        self._FlowList.pack(expand='yes',fill='both',side='top')
+        self._FlowList.pack(expand='yes',fill='both',side='left')
         self._FlowList.bind('<<ListboxSelect>>',self._on_FlowList_select)
+        self._FlowList.bind('<Double-Button-1>',self._on_FlowList_DblBtn)
+        self._FlowScroll = Scrollbar(self._FlowFrame)
+        self._FlowScroll.pack(anchor='e',fill='y',side='left')
         self._Frame3 = Frame(self._OpFrame)
         self._Frame3.pack(fill='x',side='top')
         self._AddOpBtn = Button(self._Frame3,height='3',text='ADD OP')
         self._AddOpBtn.pack(expand='yes',fill='both',side='left')
-        self._AddOpBtn.bind('<ButtonPress-1>',self._on_AddOpBtn_Button_1)
+        self._AddOpBtn.bind('<ButtonRelease-1>',self._on_AddOpBtn_Button_1)
         self._DelOpBtn = Button(self._Frame3,text='DELETE OP')
         self._DelOpBtn.pack(expand='yes',fill='both',side='left')
-        self._DelOpBtn.bind('<ButtonPress-1>',self._on_DelOpBtn_Button_1)
+        self._DelOpBtn.bind('<ButtonRelease-1>',self._on_DelOpBtn_Button_1)
         self._TabHost = ttk.Notebook(self._ContentFrame)
         self._TabHost.pack(anchor='nw',expand='yes',fill='both',side='top')
         self._Frame9 = Frame(self._ContentFrame)
@@ -442,7 +476,7 @@ class SDR2_Translate(Frame):
         self._Frame11.pack(anchor='nw',fill='x',side='left')
         self._SetStringBtn = Button(self._Frame11,text='SET STRING')
         self._SetStringBtn.pack(side='left')
-        self._SetStringBtn.bind('<ButtonPress-1>' \
+        self._SetStringBtn.bind('<ButtonRelease-1>' \
             ,self._on_SetStringBtn_Button_1)
         self._Frame4 = Frame(self._ParFrame)
         self._Frame4.pack(expand='yes',fill='both',side='left')
@@ -511,6 +545,9 @@ class SDR2_Translate(Frame):
         OptionsMenu.add_command(label="Game Data", command=self.openGameDataOpts)
         self._RootMenu.add_cascade(label="Options", menu=OptionsMenu)
         Master.config(menu=self._RootMenu)
+        # Scrollbar
+        self._FlowScroll.config( command = self._FlowList.yview )
+        self._FlowList['yscrollcommand'] = self._FlowScroll.set
     #
     #Start of event handler methods
     #
@@ -556,15 +593,15 @@ class SDR2_Translate(Frame):
                 # Append the string into the list and add it to the listbox
                 try:
                     # Find opcode in which we declare the number of strings
-                    ns_idx = self.Lin.opcode_list.index(0)
+                    ns_idx = self.lin_stack[-1].opcode_list.index(0)
                     # Add one more string
-                    self.Lin.pars_list[ns_idx] = (self.Lin.pars_list[ns_idx][0], self.Lin.pars_list[ns_idx][0][1] + 1)
+                    self.lin_stack[-1].pars_list[ns_idx] = (self.lin_stack[-1].pars_list[ns_idx][0], self.lin_stack[-1].pars_list[ns_idx][0][1] + 1)
                     # Add the string to the string_list 
-                    self.Lin.string_list.append(s.encode('utf16'))
+                    self.lin_stack[-1].string_list.append(s.encode('utf16'))
                     # Add it to the listbox
                     self._StringList.insert(END, s)
                     # Show the index of the new string
-                    tkMessageBox.showinfo('String added', 'Inserted string index: %s' % str(len(self.Lin.string_list) - 1))
+                    tkMessageBox.showinfo('String added', 'Inserted string index: %s' % str(len(self.lin_stack[-1].string_list) - 1))
                 except:
                     # Something went wrong
                     tkMessageBox.showerror('Error', 'Error adding string')
@@ -578,12 +615,12 @@ class SDR2_Translate(Frame):
             # Delete from lists
             self._FlowList.delete(i)
             # Change strings section offset
-            offset = 0x02 + len(self.Lin.pars_list[i])
+            offset = 0x02 + len(self.lin_stack[-1].pars_list[i])
             self.Lin.baseoffset -= offset
             # Delete opcode, action and parameters
-            del self.Lin.opcode_list[i]
-            del self.Lin.action_list[i]
-            del self.Lin.pars_list[i]
+            del self.lin_stack[-1].opcode_list[i]
+            del self.lin_stack[-1].action_list[i]
+            del self.lin_stack[-1].pars_list[i]
         pass
 
     def _on_FilterFlowList_check(self,Event=None):
@@ -599,6 +636,70 @@ class SDR2_Translate(Frame):
             pass
         pass
 
+    def _on_FlowFileUpBtn_ButRel_1(self,Event=None):
+        # For lin - just pop the last one and populate with the old
+        if self.mode == '.lin':
+            st = self.lin_stack
+            question = "Save changes?"
+            proceed = tkMessageBox.askyesno("WARNING", question)
+            if proceed:
+                self.saveFile()
+            st.pop()
+            self.populateLinLists()
+            # Check stack size, if last element - disable UP btn
+            if len(st) < 2:
+                self._FlowFileUpBtn.config(state='disabled')
+            # Fix header
+            self._FileNameText.set(os.path.split(st[-1].fn)[1])
+            pass
+        # For pak - we have internal writer
+        if self.mode == '.pak':
+            st = self.pak_stack
+            # Save changes
+            question = "Save changes?"
+            proceed = tkMessageBox.askyesno("WARNING", question)
+            if proceed:
+                # Create a data tuple
+                filename = st[-2].files[self.pak_filenum][0]
+                data = st[-1].to_string()
+                st[-2].files[self.pak_filenum] = (filename, data)
+            # Clear flowlist and pop the last element of the pak stack
+            self._FlowList.delete(0,END)
+            st.pop()
+            # Populate flowlist with original pak's files
+            for f in st[-1].files:
+                self._FlowList.insert(END, "%s" % f[0])                
+            # Check stack size, if last element - disable UP btn
+            if len(st) < 2:
+                self._FlowFileUpBtn.config(state='disabled')
+        pass
+
+    def _on_FlowList_DblBtn(self,Event=None):
+        if self.mode == '.pak':
+            self._on_FlowList_DblBtn_Pak()
+        pass
+    
+    def _on_FlowList_DblBtn_Pak(self):
+        if self._FlowList.size() > 0:
+            # Now working not with actions, but with files
+            i = int(self._FlowList.curselection()[0])
+            file = self.pak_stack[-1].files[i]
+            if '.dat' in file[0] or '.p3d' in file[0]:
+                question = "Try unpacking binary file?"
+                proceed = tkMessageBox.askyesno("WARNING", question)
+                if proceed:
+                    self.pak_filenum = i
+                    # We'll use it as a directory
+                    self._FlowList.delete(0,END)
+                    # Now unpack the file
+                    pak = PakFile()
+                    pak.fromData(file[1])
+                    self.pak_stack.append(pak)
+                    for f in self.pak_stack[-1].files:
+                        self._FlowList.insert(END, "%s" % f[0])
+                    # Set UP btn working
+                    self._FlowFileUpBtn.config(state='normal')
+
     def _on_FlowList_select(self,Event=None):
         self.current_act_idx = int(self._FlowList.curselection()[0])
         if self.mode == '.lin':
@@ -610,9 +711,9 @@ class SDR2_Translate(Frame):
     def _on_FlowList_select_Lin(self):
         if self._FlowList.size() > 0:
             i = int(self._FlowList.curselection()[0])
-            action = self.Lin.action_list[i]
-            pars = self.Lin.pars_list[i]
-            code = self.Lin.opcode_list[i]
+            action = self.lin_stack[-1].action_list[i]
+            pars = self.lin_stack[-1].pars_list[i]
+            code = self.lin_stack[-1].opcode_list[i]
             # Clear everything related to pars in GUI
             self._OpCodeEditText.set('')
             self._ParEditText.set('')
@@ -646,9 +747,22 @@ class SDR2_Translate(Frame):
             # Set speaker
             if code == WRD_SPEAKER:
                 self.scene.speaker = self.charNames[pars[0][1]]
-            # Load 3D map
-            if code == WRD_LOAD_MAP:
-                self.set_map(pars[0][1])
+            # Call script
+            if code == WRD_CALL_SCRIPT:
+                question = 'Call script: e%02d_%03d_%03d.lin?' % (pars[0][1], pars[1][1], pars[2][1])
+                proceed = tkMessageBox.askyesno("Call script", question)
+                if proceed:
+                    # Clear canvas
+                    self._ScreenView.delete(ALL)
+                    self.scene.flash = []
+                    # Clear lists
+                    self._FlowList.delete(0,END)
+                    self._StringList.delete(0,END)
+                    # Load next file
+                    next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
+                    self.decodeFile(next_fn, clear = False)
+                    # Set UP btn working
+                    self._FlowFileUpBtn.config(state='normal')
             # Go to the next script
             if code == WRD_GOTO_SCRIPT:
                 question = 'Go to the next script: e%02d_%03d_%03d.lin?' % (pars[0][1], pars[1][1], pars[2][1])
@@ -661,71 +775,18 @@ class SDR2_Translate(Frame):
                     self._FlowList.delete(0,END)
                     self._StringList.delete(0,END)
                     # Load next file
-                    next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
+                    next_fn = os.path.join(DoneDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
+                    if not os.path.isfile(next_fn):
+                        next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))                    
                     self.decodeFile(next_fn)
-        pass
-    
-    def set_map(self, idx):
-        print "Setting map %d" % idx
-        fn = os.path.join(GameDataLoc,'all','modelbg','bg_%03d.pak' % idx)
-        Pak = PakFile(fn)
-        Pak.getFiles()
-        # Find every gim/gmo in pak and add it to the scene bgd
-        for file in Pak.files:
-            if '.gim' in file[0]:
-                # Decode it
-                GimImage = GimFile()
-                GimImage.fromData(file[1])
-                GimImage.getImage()
-                pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
-                pilImage.putdata(GimImage.image)
-                # Add it to the bgd list
-                self.scene.bgd.append(ImageTk.PhotoImage(pilImage))
-                # Show it on the screen
-                POS_X = (2*SCREEN_W - GimImage.width)/2
-                POS_Y = (2*SCREEN_H - GimImage.height)/2
-                self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd[-1])
-            elif '.gmo' in file[0]:
-                # Decode it
-                GmoImage = GmoFile()
-                GmoImage.fromData(file[1])
-                GmoImage.extractGim()
-                GmoImage.gim.getImage()
-                pilImage = PIL.Image.new("RGBA", (GmoImage.gim.width, GmoImage.gim.height))
-                pilImage.putdata(GmoImage.gim.image)
-                # Add it to the bgd list
-                self.scene.bgd.append(ImageTk.PhotoImage(pilImage))
-                # Show it on the screen
-                POS_X = (2*SCREEN_W - GmoImage.gim.width)/2
-                POS_Y = (2*SCREEN_H - GmoImage.gim.height)/2
-                self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd[-1])
         pass
     
     def _on_FlowList_select_Pak(self):
         if self._FlowList.size() > 0:
             # Now working not with actions, but with files
-            i = int(self._FlowList.curselection()[0])
-            # If we're returning from sub-pak
-            if i == 0 and self.pak_level > 0:
-                # Save internal pak
-                question = "Save changes?"
-                proceed = tkMessageBox.askyesno("WARNING", question)
-                if proceed:
-                    # Create a data tuple
-                    filename = self.pak_stack[-2].files[self.pak_filenum][0]
-                    data = self.pak_stack[-1].to_string()
-                    self.pak_stack[-2].files[self.pak_filenum] = (filename, data)
-                # Clear flowlist and pop the last element of the pak stack
-                self._FlowList.delete(0,END)
-                self.pak_stack.pop()
-                # Populate flowlist with original pak's files
-                for f in self.pak_stack[-1].files:
-                    self._FlowList.insert(END, "%s" % f[0])                
-                self.pak_level -= 1
-                self._FlowList.selection_clear(i)
-                pass
+            i = int(self._FlowList.curselection()[0])    
             # If not - looking at the current pak file and level
-            file = self.pak_stack[-1].files[i - self.pak_level]
+            file = self.pak_stack[-1].files[i]
             # Checking the file type
             if '.gim' in file[0]:
                 GimImage = GimFile()
@@ -751,22 +812,6 @@ class SDR2_Translate(Frame):
             elif '.txt' in file[0]:
                 self.scene.text = file[1].decode('utf16')
                 self._CurrentEditString1.set(self.scene.text)
-            elif '.dat' in file[0]:
-                question = "Try unpacking binary file?"
-                proceed = tkMessageBox.askyesno("WARNING", question)
-                if proceed:
-                    self.pak_level += 1
-                    self.pak_filenum = i
-                    # We'll use it as a directory
-                    self._FlowList.delete(0,END)
-                    # Inserting the 'go back' value
-                    self._FlowList.insert(END, '..')
-                    # Now unpack the file
-                    pak = PakFile()
-                    pak.fromData(file[1])
-                    self.pak_stack.append(pak)
-                    for f in self.pak_stack[-1].files:
-                        self._FlowList.insert(END, "%s" % f[0])
         pass
                 
     def openGameDataOpts(self):
@@ -792,12 +837,14 @@ class SDR2_Translate(Frame):
         options = {}
         options['filetypes'] = [('script files', '.lin'), ('image files', ('*.gim','*.gmo')), ('pak files', ('*.pak','*.p3d')), ('all files', '.*')]
         fn = tkFileDialog.askopenfilename(**options)
-        self.decodeFile(fn)
+        if fn:
+            self.decodeFile(fn)
         pass
     
     def saveFile(self):
-        fn = tkFileDialog.asksaveasfilename()
-        self.encodeFile(fn)
+        fn = tkFileDialog.asksaveasfilename(initialfile=self._FileNameText.get())
+        if fn:
+            self.encodeFile(fn)
         pass
     
     def populateLinLists(self):
@@ -805,14 +852,19 @@ class SDR2_Translate(Frame):
         self._StringList.delete(0,END)
         self._FlowList.delete(0,END)
         # Put strings into listbox
-        for s in self.Lin.string_list:
+        for s in self.lin_stack[-1].string_list:
             self._StringList.insert(END, s.decode('utf16'))        
         # Set action list
-        for i in xrange(len(self.Lin.action_list)):
-            self._FlowList.insert(END, "%s%s" % (self.Lin.action_list[i], self.Lin.pars_list[i]))
+        for i in xrange(len(self.lin_stack[-1].action_list)):
+            self._FlowList.insert(END, "%s%s" % (self.lin_stack[-1].action_list[i], self.lin_stack[-1].pars_list[i]))
         pass
     
-    def decodeFile(self, fn):
+    def decodeFile(self, fn, clear = True):
+        # Clear stacks
+        if clear:
+            self.lin_stack = []
+            self.pak_stack = []
+        # Get file type from ext
         file = os.path.split(fn)[1]
         self._FileNameText.set(file)
         print "Decoding %s" % fn
@@ -820,7 +872,8 @@ class SDR2_Translate(Frame):
         if '.lin' in file:
             self.mode = '.lin'
             # Decode another file
-            self.Lin.decodeLinFile(fn)
+            self.lin_stack.append(LinFile())
+            self.lin_stack[-1].decodeLinFile(fn)
             self.populateLinLists()
         
         # Pak file
@@ -830,12 +883,10 @@ class SDR2_Translate(Frame):
             pak = PakFile(fn)
             pak.getFiles()
             # Append it into stack
-            self.pak_stack = []
             self.pak_stack.append(pak)
             # Clear everything
             self._StringList.delete(0,END)
             self._FlowList.delete(0,END)
-            self.pak_level = 0
             # Put all filenames into the flow list
             for f in self.pak_stack[-1].files:
                 self._FlowList.insert(END, "%s" % f[0])
@@ -847,12 +898,10 @@ class SDR2_Translate(Frame):
             pak = P3dFile(fn)
             pak.getFiles()
             # Append it into stack
-            self.pak_stack = []
             self.pak_stack.append(pak)
             # Clear everything
             self._StringList.delete(0,END)
             self._FlowList.delete(0,END)
-            self.pak_level = 0
             # Put all filenames into the flow list
             for f in self.pak_stack[-1].files:
                 self._FlowList.insert(END, "%s" % f[0])
@@ -862,7 +911,7 @@ class SDR2_Translate(Frame):
         file = os.path.split(fn)[1]
         self._FileNameText.set(file)
         if '.lin' in fn:
-            self.Lin.encodeLinFile(fn)
+            self.lin_stack[-1].encodeLinFile(fn)
         if '.pak' in fn:
             self.pak_stack[-1].makePak(fn)
         pass
@@ -892,7 +941,7 @@ class SDR2_Translate(Frame):
             # Delete the old string from the visible list
             self._StringList.delete(idx)
             # Insert the new string
-            self.Lin.string_list[idx] = final_string
+            self.lin_stack[-1].string_list[idx] = final_string
             self._StringList.insert(idx, final_string)
             # Show the new version
             self.scene.text = self._StringList.get(idx)
@@ -901,9 +950,9 @@ class SDR2_Translate(Frame):
         elif self.mode == '.pak':
             str = self._CurrentEditString1.get()
             i = self.current_act_idx
-            l = list(self.pak_stack[-1].files[i - self.pak_level])
+            l = list(self.pak_stack[-1].files[i])
             l[1] = str.encode('utf16')
-            self.pak_stack[-1].files[i - self.pak_level] = tuple(l)
+            self.pak_stack[-1].files[i] = tuple(l)
         pass
 
     def _on_StringList_select(self,Event=None):
@@ -967,6 +1016,7 @@ try:
             config.read('config.cfg')
             try:
                 GameDataLoc = config.get('Game Data', 'Game_Data_Location')
+                DoneDataLoc = config.get('Game Data', 'Done_Data_Location')
                 config_ok = True
             except:
                 w = GameData()

@@ -7,7 +7,8 @@ import os
 import struct
 
 class LinFile():
-    def __init__(self, 
+    def __init__(self,
+                 fn = '',
                  baseoffset = -1, 
                  num_strings = -1,
                  string_list = [],
@@ -16,6 +17,7 @@ class LinFile():
                  opcode_list = [],
                  type = -1,
                  second_int = -1):
+        self.fn = fn
         self.baseoffset  = baseoffset
         self.num_strings = num_strings
         self.string_list = string_list
@@ -46,6 +48,7 @@ class LinFile():
         # Clear everything
         self.clear()
         # Open file
+        self.fn = fn
         fp = open(fn, 'rb')
         # Get type
         fp.seek(0)
@@ -123,6 +126,8 @@ class LinFile():
         fp.write(struct.pack('I',self.second_int))
         # Check string base offset for 0x04 alignment
         add_zeros = 0x4 - (self.baseoffset % 0x4)
+        if add_zeros == 4:
+            add_zeros = 0
         self.baseoffset += add_zeros
         fp.write(struct.pack('I',self.baseoffset))
         # Encode base
