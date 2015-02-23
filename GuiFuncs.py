@@ -17,57 +17,128 @@ def showSprite(self, GameDataLoc, pars):
     POS_Y = (2*SCREEN_H - GimImage.height)/2
     imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.sprite, tag = 'sprite')
     pass
-    
-def showFlash(self, GameDataLoc, pars):
-    root = GameDataLoc + 'all/flash/'
-    if not os.path.isfile(root + 'fla_%03d.pak' % pars[0][1]):
-        root = GameDataLoc + 'jp/flash/'
-    try:
-        Pak = PakFile(root + 'fla_%03d.pak' % pars[0][1])
-        Pak.getFiles()
-    except:
-        # If there's no such file
-        Pak = PakFile(root + 'fla_%03d.pak' % 999)
-        Pak.getFiles()
-    # FIXME: need to check its number
-    idx = pars[-1][1]
-    if idx == 255:
-        # Erase everything from the screen
-        self._ScreenView.delete(ALL)
-        self.scene.flash = []
-        return 0
-    # Else - check for image, numeration starts with 1
-    imageFile = Pak.files[idx - 1]
-    if '.gmo' in imageFile[0]:
-        GmoImage = GmoFile()
-        GmoImage.fromData(imageFile[1])
-        GmoImage.extractGim()
-        GmoImage.gim.getImage()
-        image = GmoImage.gim.image
-        pilImage = PIL.Image.new("RGBA", (GmoImage.gim.width, GmoImage.gim.height))
-        pilImage.putdata(GmoImage.gim.image)
-        self.scene.flash.append(ImageTk.PhotoImage(pilImage))
-        POS_X = (2*SCREEN_W - GmoImage.gim.width)/2
-        POS_Y = (2*SCREEN_H - GmoImage.gim.height)/2
-        imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.flash[-1])
-        return 0
-    if '.gim' in imageFile[0]:
+
+def showBGD(self, GameDataLoc, pars):
+    fn = os.path.join(GameDataLoc,'all','cg', 'bgd_%03d.gim' % (pars[0][1]))
+    # Show image
+    if (pars[1][1] == 1):
         GimImage = GimFile()
-        GimImage.fromData(imageFile[1])
+        GimImage.openGim(fn)
         GimImage.getImage()
         pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
         pilImage.putdata(GimImage.image)
-        self.scene.flash.append(ImageTk.PhotoImage(pilImage))
+        self.scene.bgd = ImageTk.PhotoImage(pilImage)
         POS_X = (2*SCREEN_W - GimImage.width)/2
         POS_Y = (2*SCREEN_H - GimImage.height)/2
-        imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.flash[-1])
-        # Text should be kept on the top
-        self._ScreenView.tag_raise('text')
-        return 0
-    # If neither gim nor gmo - i don't know how to use sfl files yet
-    imagesprite = self._ScreenView.create_text(SCREEN_W/2, SCREEN_H/2, text="FLASH ANIMATION STUB")
-    return -1
+        imagebgd = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.bgd, tag = 'bgd')
+    else:
+        self.scene.bgd = [];
+        self._ScreenView.delete('bgd')
     pass
+    
+def showFlash(self, GameDataLoc, pars):
+    # Flash types:
+    #   If id <  1000, then it's a flash event.
+    #   if id >= 1000, then it's ammo
+    #   if id >= 1500, then it's an ammo update
+    #   if id >= 2000, then it's a present
+    #   If id >= 3000, it's a cutin.
+    
+    id = pars[0][1]         # Flash ID
+    added_Y = SCREEN_H/2    # Additional display height
+    readfile = True         # Flag that we're reading file, not dataarray
+    # Check if that really is a flash
+    if id >= 3000:
+        # Cutin
+        root = os.path.join(GameDataLoc,'all','cg','cutin')
+        fn_tmp = 'cutin_ico_%03d.gim'
+        id = id - 3000
+
+    elif id >= 2000:
+        # Present
+        root = os.path.join(GameDataLoc,'all','cg','present')
+        fn_tmp = 'present_ico_%03d.gim'
+        id = id - 2000
+
+    elif id >= 1500:
+        # Ammo
+        root = os.path.join(GameDataLoc,'all','cg','kotodama')
+        fn_tmp = 'kotodama_ico_%03d.gim'
+        id = id - 1500
+
+    elif id >= 1000:
+        # Also ammo
+        root = os.path.join(GameDataLoc,'all','cg','kotodama')
+        fn_tmp = 'kotodama_ico_%03d.gim'
+        id = id - 1000
+
+    # A flash event.
+    else:
+        added_Y = 0 # Don't need an additional height here
+        root = os.path.join(GameDataLoc,'all','flash')
+        fn_tmp = 'fla_%03d.pak'
+        file = os.path.join(root, fn_tmp % id)
+        # Check dir because we have 2 of those
+        if not os.path.isfile(file):
+            root = os.path.join(GameDataLoc,'jp','flash')
+    
+    file = os.path.join(root, fn_tmp % id)
+    # Check for file
+    if not os.path.isfile(file):
+        return -1
+        
+    # Get extension
+    _, ext = os.path.splitext(file)
+    if ext not in ['.pak', '.gmo', '.gim']:
+        return -1
+    
+    if ext == '.pak':
+        Pak = PakFile(file)
+        Pak.getFiles()
+        # FIXME: need to check its number
+        idx = pars[-1][1]
+        if idx == 255:
+            # Erase everything from the screen
+            self._ScreenView.delete(ALL)
+            self.scene.flash = []
+            return 0
+        # Else - check for image, numeration starts with 1
+        # Note that i'm using the SAME variable for unification
+        file = Pak.files[idx - 1][1]
+        _, ext = os.path.splitext(Pak.files[idx - 1][0])
+        # Set flag that we're reading data
+        readfile = False
+        # Check extension
+        if ext not in ['.gmo', '.gim']:
+            return -1
+        
+    if ext == '.gmo':
+        GmoImage = GmoFile()
+        if readfile:
+            GmoImage.openGmo(file)
+        else:
+            GmoImage.fromData(file)
+        GmoImage.extractGim()
+        GimImage = GmoImage.gim
+        
+    if ext == '.gim':
+        GimImage = GimFile()
+        if readfile:
+            GimImage.openGim(file)
+        else:
+            GimImage.fromData(file)
+    
+    # Now working with gim image
+    GimImage.getImage()
+    pilImage = PIL.Image.new("RGBA", (GimImage.width, GimImage.height))
+    pilImage.putdata(GimImage.image)
+    self.scene.flash.append(ImageTk.PhotoImage(pilImage))
+    POS_X = (2*SCREEN_W - GimImage.width)/2
+    POS_Y = (2*SCREEN_H - GimImage.height)/2 - added_Y
+    imagesprite = self._ScreenView.create_image(POS_X,POS_Y,image=self.scene.flash[-1])
+    # Text should be kept on the top
+    self._ScreenView.tag_raise('text')
+    return 0
 
 def printLine(self):
     # First delete the old line

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #coding=utf8
-
+import __future__
 import rpErrorHandler
 from Tkinter import *
 #------------------------------------------------------------------------------#
@@ -285,18 +285,18 @@ class OpCodeCreator(Toplevel):
         if proceed:
             # Insert new value into the master's lists
             i = self.Master.current_act_idx+1
-            self.Master.Lin.opcode_list.insert(i, self.selected_opcode)
-            self.Master.Lin.action_list.insert(i, OP_FUNCTIONS[self.selected_opcode])
-            self.Master.Lin.pars_list.insert(i, self.par_list)
+            self.Master.lin_stack[-1].opcode_list.insert(i, self.selected_opcode)
+            self.Master.lin_stack[-1].action_list.insert(i, OP_FUNCTIONS[self.selected_opcode])
+            self.Master.lin_stack[-1].pars_list.insert(i, self.par_list)
             # Fix the string offset, initial value for the 0x70 + opcode
             add_offset = 0x02
             for par in OP_PARAMS[self.selected_opcode]:
                 # Add size of each parameter
                 add_offset += struct.calcsize(par[1]) 
             # Add the new offset to the base offset
-            self.Master.Lin.baseoffset += add_offset
+            self.Master.lin_stack[-1].baseoffset += add_offset
             # Add to the master's listbox
-            self.Master._FlowList.insert(i, "%s%s" % (self.Master.Lin.action_list[i], self.Master.Lin.pars_list[i]))
+            self.Master._FlowList.insert(i, "%s%s" % (self.Master.lin_stack[-1].action_list[i], self.Master.lin_stack[-1].pars_list[i]))
             # Exit
             self.destroy()
         pass
@@ -383,6 +383,8 @@ class SDR2_Translate(Frame):
         self._CurrentEditString3 = StringVar()
         self._FileNameText = StringVar()
         self._Filtered = StringVar()
+        self._TextWidthVal = StringVar()
+        self._MaxWidthEnabled = IntVar()
         self._OpCodeEditText = StringVar()
         self._ParEditText = StringVar()
         self._ParLabelText = StringVar()
@@ -446,8 +448,6 @@ class SDR2_Translate(Frame):
         self._StringFrame.pack(side='left')
         self._MiscFrame = Frame(self._TabHost)
         self._MiscFrame.pack(side='left')
-        self._MiscList = Listbox(self._MiscFrame)
-        self._MiscList.pack(side='top')
         self._CanvasFrame = Frame(self._TabHost)
         self._CanvasFrame.pack(side='left')
         self._ScreenView = Canvas(self._CanvasFrame,background='#000000'
@@ -455,7 +455,7 @@ class SDR2_Translate(Frame):
         self._ScreenView.pack(expand='yes',side='left')
         self._Frame10 = Frame(self._Frame9)
         self._Frame10.pack(side='left')
-        self._EditString1 = Entry(self._Frame10
+        self._EditString1 = ttk.Entry(self._Frame10
             ,textvariable=self._CurrentEditString1,width='50')
         self._EditString1.pack(anchor='s',side='top')
         self._EditString3 = Entry(self._Frame10
@@ -481,16 +481,20 @@ class SDR2_Translate(Frame):
         self._Frame4 = Frame(self._ParFrame)
         self._Frame4.pack(expand='yes',fill='both',side='left')
         self._ParList = Listbox(self._Frame4)
-        self._ParList.pack(expand='yes',fill='both',side='left')
+        self._ParList.pack(expand='yes',fill='both',side='top')
         self._Frame5 = Frame(self._ParFrame)
         self._Frame5.pack(expand='yes',fill='x',side='left')
+        self._Frame8 = Frame(self._StringFrame)
+        self._Frame8.pack(side='top')
+        self._StringListLabel = Label(self._Frame8,text='String list')
+        self._StringListLabel.pack(anchor='n',fill='x',side='left')
         self._Frame6 = Frame(self._StringFrame)
         self._Frame6.pack(expand='yes',fill='both',side='top')
-        self._StringListLabel = Label(self._Frame6,text='String list')
-        self._StringListLabel.pack(anchor='n',fill='x',side='top')
         self._StringList = Listbox(self._Frame6)
-        self._StringList.pack(anchor='nw',expand='yes',fill='both',side='top')
+        self._StringList.pack(anchor='nw',expand='yes',fill='both',side='left')
         self._StringList.bind('<<ListboxSelect>>',self._on_StringList_select)
+        self._StringScroll = Scrollbar(self._Frame6)
+        self._StringScroll.pack(anchor='e',fill='y',side='left')
         self._Frame7 = Frame(self._StringFrame)
         self._Frame7.pack(fill='both',side='top')
         self._StringIdxTextLbl = Label(self._Frame7,text='Current string:')
@@ -501,6 +505,25 @@ class SDR2_Translate(Frame):
         self._AddStringBtn.pack(anchor='e',side='left')
         self._AddStringBtn.bind('<ButtonPress-1>' \
             ,self._on_AddStringBtn_Button_1)
+        self._Frame14 = Frame(self._MiscFrame)
+        self._Frame14.pack(expand='yes',fill='both',side='top')
+        self._TextAreaLbl = Label(self._Frame14,text='Text area')
+        self._TextAreaLbl.pack(anchor='n',side='top')
+        self._PakTextArea = Text(self._Frame14,height='8',wrap='word')
+        self._PakTextArea.pack(expand='yes',fill='y',side='top')
+        self._Frame13 = Frame(self._MiscFrame)
+        self._Frame13.pack(fill='x',side='top')
+        self._MaxWidthEntry = IntegerEntry(self._Frame13,state='disabled'
+            ,textvariable=self._TextWidthVal)
+        self._MaxWidthEntry.pack(side='left')
+        self._MaxWidthTest = Checkbutton(self._Frame13
+            ,command=self._on_MaxWidthTest_click,text='Max Width'
+            ,variable=self._MaxWidthEnabled)
+        self._MaxWidthTest.pack(fill='x',side='left')
+        self._SetPakTextBtn = Button(self._Frame13,text='Set Text')
+        self._SetPakTextBtn.pack(side='right')
+        self._SetPakTextBtn.bind('<ButtonRelease-1>' \
+            ,self._on_SetPakTextBtn_ButRel_1)
         self._ParListFrame = Frame(self._Frame5)
         self._ParListFrame.pack(expand='yes',fill='x',side='top')
         self._OpCodeLabel = Label(self._ParListFrame,text='Op Code',width='10')
@@ -525,10 +548,11 @@ class SDR2_Translate(Frame):
         self._CurrentEditString1.trace('w', self._on_EditString1_modified)
         self._CurrentEditString2.trace('w', self._on_EditString2_modified)
         self._CurrentEditString3.trace('w', self._on_EditString3_modified)
+        self._TextWidthVal.trace('w', self._on_MaxWidthEntry_changed)
         # Tabs
         self._TabHost.add(self._CanvasFrame, text="Canvas")
         self._TabHost.add(self._StringFrame, text="Strings")
-        self._TabHost.add(self._MiscFrame, text="Misc")
+        self._TabHost.add(self._MiscFrame, text="Pak Text")
         # Filter
         self._FilterFlowList.deselect()
         # Set menu
@@ -545,9 +569,11 @@ class SDR2_Translate(Frame):
         OptionsMenu.add_command(label="Game Data", command=self.openGameDataOpts)
         self._RootMenu.add_cascade(label="Options", menu=OptionsMenu)
         Master.config(menu=self._RootMenu)
-        # Scrollbar
+        # Scrollbars
         self._FlowScroll.config( command = self._FlowList.yview )
         self._FlowList['yscrollcommand'] = self._FlowScroll.set
+        self._StringScroll.config( command = self._StringList.yview )
+        self._StringList['yscrollcommand'] = self._StringScroll.set
     #
     #Start of event handler methods
     #
@@ -615,8 +641,12 @@ class SDR2_Translate(Frame):
             # Delete from lists
             self._FlowList.delete(i)
             # Change strings section offset
-            offset = 0x02 + len(self.lin_stack[-1].pars_list[i])
-            self.Lin.baseoffset -= offset
+            opcode = self.lin_stack[-1].opcode_list[i]
+            offset = 0x02
+            # Add size of each parameter
+            for par in OP_PARAMS[opcode]:
+                offset += struct.calcsize(par[1]) 
+            self.lin_stack[-1].baseoffset -= offset
             # Delete opcode, action and parameters
             del self.lin_stack[-1].opcode_list[i]
             del self.lin_stack[-1].action_list[i]
@@ -730,6 +760,9 @@ class SDR2_Translate(Frame):
             # Show flash
             if code == WRD_FLASH:
                 GuiFuncs.showFlash(self, GameDataLoc, pars)
+            # Show BGD
+            if code == WRD_BGD:
+                GuiFuncs.showBGD(self, GameDataLoc, pars)
             # Text highlighting
             if code == WRD_CLT:
                 self.scene.text_clt = True
@@ -759,7 +792,9 @@ class SDR2_Translate(Frame):
                     self._FlowList.delete(0,END)
                     self._StringList.delete(0,END)
                     # Load next file
-                    next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
+                    next_fn = os.path.join(DoneDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))
+                    if not os.path.isfile(next_fn):
+                        next_fn = os.path.join(GameDataLoc, 'jp', 'script', 'e%02d_%03d_%03d.lin' % (pars[0][1], pars[1][1], pars[2][1]))                    
                     self.decodeFile(next_fn, clear = False)
                     # Set UP btn working
                     self._FlowFileUpBtn.config(state='normal')
@@ -812,6 +847,8 @@ class SDR2_Translate(Frame):
             elif '.txt' in file[0]:
                 self.scene.text = file[1].decode('utf16')
                 self._CurrentEditString1.set(self.scene.text)
+                self._PakTextArea.delete(1.0, END)
+                self._PakTextArea.insert(END, self.scene.text)
         pass
                 
     def openGameDataOpts(self):
@@ -845,6 +882,12 @@ class SDR2_Translate(Frame):
         fn = tkFileDialog.asksaveasfilename(initialfile=self._FileNameText.get())
         if fn:
             self.encodeFile(fn)
+            # Get current slider positions and re-read both files
+            fl = self._FlowList.yview()
+            st = self._StringList.yview()
+            self.decodeFile(fn)
+            self._FlowList.yview_moveto(fl[0])
+            self._StringList.yview_moveto(st[0])
         pass
     
     def populateLinLists(self):
@@ -867,7 +910,7 @@ class SDR2_Translate(Frame):
         # Get file type from ext
         file = os.path.split(fn)[1]
         self._FileNameText.set(file)
-        print "Decoding %s" % fn
+        print("Decoding %s" % fn)
         # Lin file
         if '.lin' in file:
             self.mode = '.lin'
@@ -919,6 +962,32 @@ class SDR2_Translate(Frame):
     def exit():
         Root.quit()
 
+
+    def _on_MaxWidthEntry_changed(self,*args):
+        try:
+            self._PakTextArea.config(width=int(self._TextWidthVal.get()))
+        except:
+            pass
+        pass
+
+    def _on_MaxWidthTest_click(self,Event=None):
+        if self._MaxWidthEnabled.get() == 1:
+            self._MaxWidthEntry.config(state='normal')
+            try: 
+                self._PakTextArea.config(width=int(self._TextWidthVal.get()))
+            except:
+                self._TextWidthVal.set('36')
+        else:
+            self._MaxWidthEntry.config(state='disabled')
+        pass
+
+    def _on_SetPakTextBtn_ButRel_1(self,Event=None):
+        str = self._PakTextArea.get(1.0, END)
+        i = self.current_act_idx
+        l = list(self.pak_stack[-1].files[i])
+        l[1] = str.encode('utf16')
+        self.pak_stack[-1].files[i] = tuple(l)
+        pass
 
     def _on_SetStringBtn_Button_1(self,Event=None):
         # For .lin file we're just changing the string in its string_list
@@ -1007,6 +1076,7 @@ try:
     from Character import *
     from LinFile import *
     from enum import *
+    from GUI_Additional import IntegerEntry
  
     if __name__ == '__main__':
         # Read config
@@ -1017,6 +1087,10 @@ try:
             try:
                 GameDataLoc = config.get('Game Data', 'Game_Data_Location')
                 DoneDataLoc = config.get('Game Data', 'Done_Data_Location')
+                if not os.path.exists(GameDataLoc):
+                    raise Exception('Bad path')
+                if not os.path.exists(DoneDataLoc):
+                    raise Exception('Bad path')
                 config_ok = True
             except:
                 w = GameData()

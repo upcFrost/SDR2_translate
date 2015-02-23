@@ -32,7 +32,7 @@ class LinFile():
     
     def clear(self):
         self.baseoffset = -1
-        self.numstrings = -1
+        self.num_strings = -1
         self.type = -1
         self.string_list = []
         self.action_list = []

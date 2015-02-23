@@ -1,13 +1,10 @@
-Sprite.py
- -Main- 0 24
- -Main- 24 26
 SDR2_Translate.py
  -Main- 0 5
  Filter 5 109
  GameData 114 96
  OpCodeCreator 210 143
- SDR2_Translate 353 630
- -Main- 983 60
+ SDR2_Translate 353 699
+ -Main- 1052 65
 Common.py
  -Main- 0 4
  -Main- 4 17

@@ -248,12 +248,22 @@ EBOOT_PATCHES = [
   },
   {NAME: "Fix Line Height", ENABLED: True, EXT_ONLY: False, CFG_ID: "06_line_height_fix", DATA:
     [
-      {POS: 0x001F9BB0, ORIG: array.array('B', [0x00,0x00,0x08,0x43]), PATCH: array.array('B', [0x00,0x00,0x10,0x43])},
       # It fixes the offset. Offset is calculated in the cycle between 0887A740 and 0887A768 in memory.
       # Offset by Y is in f3, which is calculated as f3 = f0 - f24.
       # f24 value is gathered at 0887A160, which 0x001F9BB0 in EBOOT. its value is  0x43080000
       # It corresponds to 136 in FPU. If changed to 0x43100000, which is 144, it does the trick
       # Patch also works without eboot expansion
+      {POS: 0x001F9BB0, ORIG: array.array('B', [0x00,0x00,0x08,0x43]), PATCH: array.array('B', [0x00,0x00,0x10,0x43])},
+      # And this fixes the height of system messages. There's quite a long op, which results into lwc1 f0,0x8(sp) at 088F5068
+      # and cvt.s.w	f2,f0 in the next op
+      # This part of memory is written as a hi of 088F4664 	mult v0,s6. 
+      # s6 is defined in two parts at 088F459C
+      # 	lui	a0,0x51EB
+      #     ori	s6,a0,0x851F
+      # hi of the multiplication relies almost solely on a0. So, when changing it to 0x7EEB, it becomes ok 
+      # (but some strange inter-letter space occures, need to check whether it's font or code)
+      {POS: 0x000F065C, ORIG: array.array('B', [0xEB,0x51,0x04,0x3C]), PATCH: array.array('B', [0xEB,0x7E,0x04,0x3C])},
+
     ]
   },
   {NAME: "English Font for Labels", ENABLED: True, EXT_ONLY: False, CFG_ID: "07_eng_labels_fix", DATA:
