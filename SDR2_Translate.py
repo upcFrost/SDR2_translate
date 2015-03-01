@@ -126,30 +126,13 @@ class GameData(Toplevel):
         apply(Toplevel.__init__,(self,Master),kw)
         self.GameDataLoc = StringVar()
         self.DoneDataLoc = StringVar()
+        self.InProcDataLoc = StringVar()
         self._Frame3 = Frame(self)
         self._Frame3.pack(side='top')
         self._GameDataLbl = Label(self._Frame3,text='Game Data Options')
         self._GameDataLbl.pack(side='top')
-        self._Frame2 = Frame(self)
-        self._Frame2.pack(side='top')
-        self._PathLbl = Label(self._Frame2,text='Path to Game Data')
-        self._PathLbl.pack(side='left')
-        self._DataLoc = Entry(self._Frame2,textvariable=self.GameDataLoc)
-        self._DataLoc.pack(side='left')
-        self._BrowseLocBtn = Button(self._Frame2,text='Browse')
-        self._BrowseLocBtn.pack(side='left')
-        self._BrowseLocBtn.bind('<ButtonRelease-1>' \
-            ,self._on_BrowseLocBtn_Button_1)
-        self._Frame4 = Frame(self)
-        self._Frame4.pack(side='top')
-        self._DoneLbl = Label(self._Frame4,text='Path to Done Files')
-        self._DoneLbl.pack(side='left')
-        self._DoneLoc = Entry(self._Frame4,textvariable=self.DoneDataLoc)
-        self._DoneLoc.pack(side='left')
-        self._BrowseDoneBtn = Button(self._Frame4,text='Browse')
-        self._BrowseDoneBtn.pack(side='left')
-        self._BrowseDoneBtn.bind('<ButtonRelease-1>' \
-            ,self._on_BrowseDoneBtn_ButRel_1)
+        self._Frame5 = Frame(self)
+        self._Frame5.pack(side='top')
         self._Frame1 = Frame(self)
         self._Frame1.pack(side='top')
         self._OkBtn = Button(self._Frame1,text='Ok')
@@ -158,6 +141,40 @@ class GameData(Toplevel):
         self._CancelBtn = Button(self._Frame1,text='Cancel')
         self._CancelBtn.pack(side='left')
         self._CancelBtn.bind('<ButtonRelease-1>',self._on_CancelBtn_ButRel_1)
+        self._Frame6 = Frame(self._Frame5)
+        self._Frame6.pack(side='left')
+        self._PathLbl = Label(self._Frame6,text='Path to Game Data')
+        self._PathLbl.pack(anchor='w',side='top')
+        self._DoneLbl = Label(self._Frame6,text='Path to Done Files')
+        self._DoneLbl.pack(anchor='w',side='bottom')
+        self._InProcLbl = Label(self._Frame6,text='Path to In Process Files')
+        self._InProcLbl.pack(anchor='w',side='bottom')
+        self._Frame8 = Frame(self._Frame5)
+        self._Frame8.pack(side='left')
+        self._Frame4 = Frame(self._Frame8)
+        self._Frame4.pack(side='top')
+        self._DataLoc = Entry(self._Frame4,textvariable=self.GameDataLoc)
+        self._DataLoc.pack(side='left')
+        self._BrowseLocBtn = Button(self._Frame4,text='Browse')
+        self._BrowseLocBtn.pack(side='left')
+        self._BrowseLocBtn.bind('<ButtonRelease-1>' \
+            ,self._on_BrowseLocBtn_Button_1)
+        self._Frame9 = Frame(self._Frame8)
+        self._Frame9.pack(side='top')
+        self._InProcLoc = Entry(self._Frame9,textvariable=self.InProcDataLoc)
+        self._InProcLoc.pack(side='left')
+        self._BrowseInProcBtn = Button(self._Frame9,text='Browse')
+        self._BrowseInProcBtn.pack(side='left')
+        self._BrowseInProcBtn.bind('<ButtonRelease-1>' \
+            ,self._on_BrowseInProcBtn_ButRel_1)
+        self._Frame2 = Frame(self._Frame8)
+        self._Frame2.pack(side='top')
+        self._DoneLoc = Entry(self._Frame2,textvariable=self.DoneDataLoc)
+        self._DoneLoc.pack(side='left')
+        self._BrowseDoneBtn = Button(self._Frame2,text='Browse')
+        self._BrowseDoneBtn.pack(side='left')
+        self._BrowseDoneBtn.bind('<ButtonRelease-1>' \
+            ,self._on_BrowseDoneBtn_ButRel_1)
         #
         #Your code here
         #
@@ -165,6 +182,10 @@ class GameData(Toplevel):
             self.GameDataLoc.set(GameDataLoc)
         except:
             self.GameDataLoc.set('')
+        try:
+            self.InProcDataLoc.set(InProcDataLoc)
+        except:
+            self.InProcDataLoc.set('')
         try:
             self.DoneDataLoc.set(DoneDataLoc)
         except:
@@ -178,6 +199,12 @@ class GameData(Toplevel):
         loc = tkFileDialog.askdirectory()
         if loc:
             self.DoneDataLoc.set(loc)
+        pass
+
+    def _on_BrowseInProcBtn_ButRel_1(self,Event=None):
+        loc = tkFileDialog.askdirectory()
+        if loc:
+            self.InProcDataLoc.set(loc)
         pass
 
     def _on_BrowseLocBtn_Button_1(self,Event=None):
@@ -196,6 +223,7 @@ class GameData(Toplevel):
         config = ConfigParser.ConfigParser()
         config.add_section('Game Data')
         config.set('Game Data', 'Game_Data_Location', self.GameDataLoc.get())
+        config.set('Game Data', 'InProc_Data_Location', self.InProcDataLoc.get())
         config.set('Game Data', 'Done_Data_Location', self.DoneDataLoc.get())
         with open('config.cfg', 'wb') as configfile:
             config.write(configfile)
@@ -561,6 +589,7 @@ class SDR2_Translate(Frame):
         FileMenu = Menu(self._RootMenu, tearoff=0)
         FileMenu.add_command(label="Open", command=self.openFile)
         FileMenu.add_command(label="Save", command=self.saveFile)
+        FileMenu.add_command(label="Check Progress", command=self.checkProgress)
         FileMenu.add_command(label="Extract Pak", command=self.extractPak)
         FileMenu.add_command(label="Exit", command=exit)
         self._RootMenu.add_cascade(label="File", menu=FileMenu)
@@ -869,11 +898,22 @@ class SDR2_Translate(Frame):
                 fp.close
         tkMessageBox.showinfo('Complete', 'Pak file %s extracted successfully into %s' % (fn, ds))
         pass
+    
+    def checkProgress(self):
+        DataPath = {'orig': GameDataLoc,
+                             'proc': InProcDataLoc,
+                             'done': DoneDataLoc
+        }
+        fn = checkProgress(DataPath)
+        if fn:
+            self.openFile(fn)
+        pass
         
-    def openFile(self):
+    def openFile(self, fn = None):
         options = {}
         options['filetypes'] = [('script files', '.lin'), ('image files', ('*.gim','*.gmo')), ('pak files', ('*.pak','*.p3d')), ('all files', '.*')]
-        fn = tkFileDialog.askopenfilename(**options)
+        if not fn:
+            fn = tkFileDialog.askopenfilename(**options)
         if fn:
             self.decodeFile(fn)
         pass
@@ -1077,6 +1117,7 @@ try:
     from LinFile import *
     from enum import *
     from GUI_Additional import IntegerEntry
+    from checkProgress import *
  
     if __name__ == '__main__':
         # Read config
@@ -1086,6 +1127,7 @@ try:
             config.read('config.cfg')
             try:
                 GameDataLoc = config.get('Game Data', 'Game_Data_Location')
+                InProcDataLoc = config.get('Game Data', 'InProc_Data_Location')
                 DoneDataLoc = config.get('Game Data', 'Done_Data_Location')
                 if not os.path.exists(GameDataLoc):
                     raise Exception('Bad path')

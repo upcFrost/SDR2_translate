@@ -168,7 +168,10 @@ class LinFile():
         for t_len in str_len:
             fp.write(struct.pack('I', t_len))
         # Append the last int
-        fp.write(self.strange_byte)
+        try:
+            fp.write(self.strange_byte)
+        except:
+            True
         # Write all texts
         for s in self.string_list:
             fp.write(s)

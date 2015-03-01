@@ -149,7 +149,7 @@ def printLine(self):
     # I'm using images here because of the following things: positioning, alpha and font
     pilImage = PIL.Image.new("RGBA", (SCREEN_W, TEXT_H), (32,32,32,192))
     draw = PIL.ImageDraw.Draw(pilImage)
-    font = PIL.ImageFont.truetype("rounded-mgenplus-2pp-regular.ttf", 20)
+    font = PIL.ImageFont.truetype("Meiryo.ttf", 20)
     # First  - draw the speaker name at (20,0)
     draw.text((20,0), self.scene.speaker, (255,255,255), font=font)
     # Default highlighting
