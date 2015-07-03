@@ -1126,9 +1126,9 @@ try:
             config = ConfigParser.ConfigParser()
             config.read('config.cfg')
             try:
-                GameDataLoc = config.get('Game Data', 'Game_Data_Location')
-                InProcDataLoc = config.get('Game Data', 'InProc_Data_Location')
-                DoneDataLoc = config.get('Game Data', 'Done_Data_Location')
+                GameDataLoc = os.path.normpath(config.get('Game Data', 'Game_Data_Location'))
+                InProcDataLoc = os.path.normpath(config.get('Game Data', 'InProc_Data_Location'))
+                DoneDataLoc = os.path.normpath(config.get('Game Data', 'Done_Data_Location'))
                 if not os.path.exists(GameDataLoc):
                     raise Exception('Bad path')
                 if not os.path.exists(DoneDataLoc):
